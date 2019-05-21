@@ -55,13 +55,16 @@ ALWAYS_INLINE size_t resolveProgramCounter(char* codeBuffer, const size_t progra
     return programCounter - (size_t)codeBuffer;
 }
 
-Value ByteCodeInterpreter::interpret(ExecutionState& state, ByteCodeBlock* byteCodeBlock, size_t programCounter, Value* registerFile, void* initAddressFiller)
+Value ByteCodeInterpreter::interpret(ExecutionState& state, ByteCodeBlock* byteCodeBlock, size_t programCounter, Value* registerFile)
 {
 #if defined(COMPILER_GCC)
-    if (UNLIKELY(initAddressFiller != nullptr)) {
-        *((size_t*)initAddressFiller) = ((size_t) && FillOpcodeTableOpcodeLbl);
+    if (UNLIKELY(byteCodeBlock == nullptr)) {
+        goto InitOpcodeTable:
     }
 #endif
+
+    ASSERT(byteCodeBlock != nullptr);
+    ASSERT(registerFile != nullptr);
 
     ExecutionContext* ec = state.executionContext();
     char* codeBuffer = byteCodeBlock->m_code.data();
@@ -1340,12 +1343,10 @@ Value ByteCodeInterpreter::interpret(ExecutionState& state, ByteCodeBlock* byteC
 
     ASSERT_NOT_REACHED();
 
-#if defined(COMPILER_GCC)
-FillOpcodeTableOpcodeLbl:
+InitOpcodeTable:
 #define REGISTER_TABLE(opcode, pushCount, popCount) g_opcodeTable.m_table[opcode##Opcode] = &&opcode##OpcodeLbl;
-    FOR_EACH_BYTECODE_OP(REGISTER_TABLE);
+        FOR_EACH_BYTECODE_OP(REGISTER_TABLE);
 #undef REGISTER_TABLE
-#endif
 
     return Value();
 }

@@ -31,6 +31,7 @@ namespace Escargot {
 #define PROPERTY_NAME_ATOMIC_STRING_VIAS 1
 
 class PropertyName {
+friend class Snapshot;
 public:
     PropertyName(const AtomicString& atomicString)
     {

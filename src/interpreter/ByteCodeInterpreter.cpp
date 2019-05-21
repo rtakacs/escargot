@@ -78,6 +78,8 @@ Value ByteCodeInterpreter::interpret(ExecutionState& state, ByteCodeBlock* byteC
 #define DEFINE_OPCODE(codeName) codeName##OpcodeLbl
 #define DEFINE_DEFAULT
 #define NEXT_INSTRUCTION() \
+    if ((size_t)(((ByteCode*)programCounter)->m_opcodeInAddress) < (size_t)OpcodeKindEnd) \
+        ((ByteCode*)programCounter)->assignOpcodeInAddress(); \
     goto*(((ByteCode*)programCounter)->m_opcodeInAddress);
 #define JUMP_INSTRUCTION(opcode) \
     goto opcode##OpcodeLbl;
@@ -480,6 +482,7 @@ Value ByteCodeInterpreter::interpret(ExecutionState& state, ByteCodeBlock* byteC
             {
                 Jump* code = (Jump*)programCounter;
                 ASSERT(code->m_jumpPosition != SIZE_MAX);
+                printf("jump to: %d\n", (int) code->m_jumpPosition);
                 programCounter = code->m_jumpPosition;
                 NEXT_INSTRUCTION();
             }
@@ -503,6 +506,7 @@ Value ByteCodeInterpreter::interpret(ExecutionState& state, ByteCodeBlock* byteC
                 } else {
                     programCounter = code->m_jumpPosition;
                 }
+                printf("nosza itt voltam...\n");
                 NEXT_INSTRUCTION();
             }
 

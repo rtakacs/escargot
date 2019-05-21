@@ -1972,11 +1972,9 @@ typedef Vector<Value, std::allocator<Value>> ByteCodeNumeralLiteralData;
 typedef std::unordered_set<ObjectStructure*, std::hash<ObjectStructure*>, std::equal_to<ObjectStructure*>,
                            GCUtil::gc_malloc_ignore_off_page_allocator<ObjectStructure*>>
     ObjectStructuresInUse;
+
 class ByteCodeBlock : public gc {
-    friend struct OpcodeTable;
-    ByteCodeBlock()
-    {
-    }
+friend class Snapshot;
 
 public:
     explicit ByteCodeBlock(InterpretedCodeBlock* codeBlock)

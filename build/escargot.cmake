@@ -13,7 +13,7 @@ SET (ESCARGOT_INCDIRS
 )
 
 IF (${ESCARGOT_MODE} STREQUAL "debug")
-    SET (ESCARGOT_CXXFLAGS ${ESCARGOT_CXXFLAGS} ${ESCARGOT_CXXFLAGS_DEBUG})
+    SET (ESCARGOT_CXXFLAGS ${ESCARGOT_CXXFLAGS_DEBUG} ${ESCARGOT_CXXFLAGS})
     SET (ESCARGOT_LDFLAGS ${ESCARGOT_LDFLAGS} ${ESCARGOT_LDFLAGS_DEBUG})
     SET (ESCARGOT_DEFINITIONS ${ESCARGOT_DEFINITIONS} ${ESCARGOT_DEFINITIONS_DEBUG})
 ELSEIF (${ESCARGOT_MODE} STREQUAL "release")
@@ -42,13 +42,16 @@ ENDIF()
 
 
 # SOURCE FILES
-FILE (GLOB_RECURSE ESCARGOT_SRC ${ESCARGOT_ROOT}/src/*.cpp)
 FILE (GLOB YARR_SRC ${ESCARGOT_THIRD_PARTY_ROOT}/yarr/*.cpp)
 FILE (GLOB DOUBLE_CONVERSION_SRC ${ESCARGOT_THIRD_PARTY_ROOT}/double_conversion/*.cc)
-
-IF (NOT ${ESCARGOT_OUTPUT} STREQUAL "bin")
-    LIST (REMOVE_ITEM ESCARGOT_SRC ${ESCARGOT_ROOT}/src/shell/Shell.cpp ${ESCARGOT_ROOT}/src/shell/GlobalObjectBuiltinTestFunctions.cpp)
-ENDIF()
+FILE (GLOB ESCARGOT_SRC ${ESCARGOT_ROOT}/src/api/*.cpp
+                        ${ESCARGOT_ROOT}/src/heap/*.cpp
+                        ${ESCARGOT_ROOT}/src/interpreter/*.cpp
+                        ${ESCARGOT_ROOT}/src/runtime/*.cpp
+                        ${ESCARGOT_ROOT}/src/parser/*.cpp
+                        ${ESCARGOT_ROOT}/src/parser/ast/*.cpp
+                        ${ESCARGOT_ROOT}/src/parser/esprima_cpp/*.cpp
+                        ${ESCARGOT_ROOT}/src/util/*.cpp)
 
 SET (ESCARGOT_SRC_LIST
     ${ESCARGOT_SRC}
@@ -108,7 +111,31 @@ ENDIF()
 
 # BUILD
 IF (${ESCARGOT_OUTPUT} STREQUAL "bin")
-    ADD_EXECUTABLE (${ESCARGOT_TARGET} ${ESCARGOT_SRC_LIST})
+    # Compile the snapshot tool.
+    IF (ESCARGOT_SNAPSHOT_SAVE)
+        ADD_EXECUTABLE (${ESCARGOT_SNAPSHOT_TARGET}
+                        ${ESCARGOT_SRC_LIST}
+                        ${ESCARGOT_ROOT}/src/snapshot/SnapshotTool.cpp
+                        ${ESCARGOT_ROOT}/src/snapshot/SnapshotSaver.cpp
+                        ${ESCARGOT_ROOT}/src/snapshot/SnapshotExecutor.cpp
+        )
+
+        ADD_DEPENDENCIES (${ESCARGOT_SNAPSHOT_TARGET} gc)
+
+        TARGET_LINK_LIBRARIES (${ESCARGOT_SNAPSHOT_TARGET} ${ESCARGOT_LIBRARIES} ${GC_TARGET} ${ESCARGOT_LDFLAGS})
+        TARGET_INCLUDE_DIRECTORIES (${ESCARGOT_SNAPSHOT_TARGET} PUBLIC ${ESCARGOT_INCDIRS})
+        TARGET_COMPILE_DEFINITIONS (${ESCARGOT_SNAPSHOT_TARGET} PUBLIC ${ESCARGOT_DEFINITIONS})
+        TARGET_COMPILE_OPTIONS (${ESCARGOT_SNAPSHOT_TARGET} PUBLIC ${ESCARGOT_CXXFLAGS} ${CXXFLAGS_FROM_ENV} ${PROFILER_FLAGS})
+
+        ADD_CUSTOM_COMMAND (TARGET ${ESCARGOT_SNAPSHOT_TARGET} POST_BUILD
+                            COMMAND cp ${ESCARGOT_OUTDIR}/${ESCARGOT_SNAPSHOT_TARGET} .)
+    ENDIF()
+
+    ADD_EXECUTABLE (${ESCARGOT_TARGET}
+                    ${ESCARGOT_SRC_LIST}
+                    ${ESCARGOT_ROOT}/src/shell/Shell.cpp
+                    ${ESCARGOT_ROOT}/src/shell/GlobalObjectBuiltinTestFunctions.cpp)
+
     ADD_DEPENDENCIES (${ESCARGOT_TARGET} gc)
 
     TARGET_LINK_LIBRARIES (${ESCARGOT_TARGET} ${ESCARGOT_LIBRARIES} ${GC_TARGET} ${ESCARGOT_LDFLAGS})

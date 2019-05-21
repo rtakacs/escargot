@@ -142,6 +142,10 @@ CodeBlock::CodeBlock(Context* ctx, AtomicString name, size_t argc, bool isStrict
 {
 }
 
+InterpretedCodeBlock::InterpretedCodeBlock(Context* ctx) {
+    m_context = ctx;
+}
+
 InterpretedCodeBlock::InterpretedCodeBlock(Context* ctx, Script* script, StringView src, ASTScopeContext* scopeCtx, ExtendedNodeLOC sourceElementStart)
     : m_script(script)
     , m_src(src)
@@ -188,6 +192,7 @@ InterpretedCodeBlock::InterpretedCodeBlock(Context* ctx, Script* script, StringV
     m_hasRestElement = scopeCtx->m_hasRestElement;
     m_isFunctionNameExplicitlyDeclared = false;
     m_isFunctionNameSaveOnHeap = false;
+    m_usingNames = scopeCtx->m_usingNames;
 
     const ASTScopeContextNameInfoVector& innerIdentifiers = scopeCtx->m_names;
 
@@ -254,6 +259,7 @@ InterpretedCodeBlock::InterpretedCodeBlock(Context* ctx, Script* script, StringV
     m_needToLoadThisValue = false;
     m_hasRestElement = scopeCtx->m_hasRestElement;
     m_shouldReparseArguments = scopeCtx->m_hasNonIdentArgument;
+    m_usingNames = scopeCtx->m_usingNames;
 
     m_parametersInfomation.resizeWithUninitializedValues(parameterNames.size());
     for (size_t i = 0; i < parameterNames.size(); i++) {

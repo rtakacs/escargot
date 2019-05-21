@@ -138,7 +138,7 @@ void ByteCodeGenerator::generateLoadThisValueByteCode(ByteCodeBlock* block, Byte
     }
 }
 
-static const uint8_t byteCodeLengths[] = {
+const uint8_t byteCodeLengths[] = {
 #define ITER_BYTE_CODE(code, pushCount, popCount) \
     (uint8_t)sizeof(code),
 
@@ -151,6 +151,11 @@ ByteCodeBlock* ByteCodeGenerator::generateByteCode(Context* c, InterpretedCodeBl
     ByteCodeBlock* block = new ByteCodeBlock(codeBlock);
     block->m_isEvalMode = isEvalMode;
     block->m_isOnGlobal = isOnGlobal;
+
+    if (scopeCtx == nullptr)
+    {
+        scopeCtx = ((ProgramNode*)ast)->scopeContext();
+    }
 
     bool isGlobalScope;
     if (!isEvalMode) {
@@ -261,8 +266,6 @@ ByteCodeBlock* ByteCodeGenerator::generateByteCode(Context* c, InterpretedCodeBl
 #else
             Opcode opcode = currentCode->m_opcode;
 #endif
-            currentCode->assignOpcodeInAddress();
-
             switch (opcode) {
             case LoadLiteralOpcode: {
                 LoadLiteral* cd = (LoadLiteral*)currentCode;

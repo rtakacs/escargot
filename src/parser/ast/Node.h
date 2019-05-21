@@ -190,6 +190,13 @@ struct ExtendedNodeLOC {
     };
     size_t index;
 
+    ExtendedNodeLOC()
+        : line(0)
+        , column(0)
+        , index(0)
+    {
+    }
+
     ExtendedNodeLOC(size_t line, size_t column, size_t index)
         : line(line)
         , column(column)
@@ -493,6 +500,7 @@ struct ASTScopeContext : public gc {
     ASTNodeType m_nodeType : 12;
     ASTScopeContextNameInfoVector m_names;
     AtomicStringVector m_usingNames;
+    AtomicStringVector m_usingNoVarNames;
     AtomicStringTightVector m_parameters;
     AtomicString m_functionName;
     Vector<ASTScopeContext *, GCUtil::gc_malloc_ignore_off_page_allocator<ASTScopeContext *>> m_childScopes;

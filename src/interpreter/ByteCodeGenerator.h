@@ -26,6 +26,8 @@
 
 namespace Escargot {
 
+extern const uint8_t byteCodeLengths[];
+
 class Context;
 class CodeBlock;
 class ByteCodeBlock;

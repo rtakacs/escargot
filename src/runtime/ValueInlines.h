@@ -103,6 +103,12 @@ inline Value::Value(FromPayloadTag, intptr_t ptr)
 #endif
 }
 
+inline Value::Value(SnapshotTag, int32_t index)
+{
+    u.asBits.tag = SnapshotIndexTag;
+    u.asBits.payload = index;
+}
+
 extern size_t g_objectTag;
 
 inline Value::Value(PointerValue* ptr)
@@ -213,6 +219,12 @@ inline int32_t Value::asInt32() const
     return u.asBits.payload;
 }
 
+inline int32_t Value::asSnapshotIndex() const
+{
+    ASSERT(isSnapshotIndex());
+    return static_cast<int32_t>(u.asInt64);
+}
+
 inline bool Value::asBoolean() const
 {
     ASSERT(isBoolean());
@@ -228,6 +240,11 @@ inline double Value::asDouble() const
 inline bool Value::isEmpty() const
 {
     return tag() == EmptyValueTag;
+}
+
+inline bool Value::isSnapshotIndex() const
+{
+    return tag() == SnapshotIndexTag;
 }
 
 ALWAYS_INLINE bool Value::isNumber() const
@@ -356,6 +373,11 @@ inline Value::Value(TrueInitTag)
 inline Value::Value(FalseInitTag)
 {
     u.asInt64 = ValueFalse;
+}
+
+inline Value::Value(SnapshotTag, int32_t index)
+{
+    u.asInt64 = TagTypeSnapshotIndex | static_cast<uint32_t>(index);
 }
 
 inline Value::Value(FromPayloadTag, intptr_t ptr)
@@ -497,6 +519,23 @@ inline bool Value::isUndefined() const
 inline bool Value::isNull() const
 {
     return u.asInt64 == ValueNull;
+}
+
+inline bool Value::isSnapshotIndex() const
+{
+#ifdef ESCARGOT_LITTLE_ENDIAN
+    ASSERT(sizeof(short) == 2);
+    unsigned short* firstByte = (unsigned short*)&u.asInt64;
+    return firstByte[3] == 0xfffd;
+#else
+    return (u.asInt64 & TagTypeSnapshotIndex) == TagTypeSnapshotIndex;
+#endif
+}
+
+inline int32_t Value::asSnapshotIndex() const
+{
+    ASSERT(isSnapshotIndex());
+    return static_cast<int32_t>(u.asInt64);
 }
 
 inline bool Value::isBoolean() const

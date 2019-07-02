@@ -72,35 +72,15 @@ void* InterpretedCodeBlock::operator new(size_t size)
 
 CodeBlock::CodeBlock(Context* ctx, const NativeFunctionInfo& info)
     : m_context(ctx)
-    , m_isConstructor(info.m_isConstructor)
-    , m_isStrict(info.m_isStrict)
-    , m_hasCallNativeFunctionCode(true)
-    , m_isFunctionNameSaveOnHeap(false)
-    , m_isFunctionNameExplicitlyDeclared(false)
-    , m_canUseIndexedVariableStorage(true)
-    , m_canAllocateEnvironmentOnStack(true)
-    , m_needsComplexParameterCopy(false)
-    , m_hasEval(false)
-    , m_hasWith(false)
-    , m_hasCatch(false)
-    , m_hasYield(false)
-    , m_inCatch(false)
-    , m_inWith(false)
-    , m_usesArgumentsObject(false)
-    , m_isFunctionExpression(false)
-    , m_isFunctionDeclaration(false)
-    , m_isFunctionDeclarationWithSpecialBinding(false)
-    , m_isArrowFunctionExpression(false)
-    , m_isClassConstructor(false)
-    , m_isGenerator(false)
-    , m_isInWithScope(false)
-    , m_isEvalCodeInFunction(false)
-    , m_needsVirtualIDOperation(false)
-    , m_needToLoadThisValue(false)
-    , m_hasRestElement(false)
-    , m_parameterCount(info.m_argumentCount)
     , m_functionName(info.m_name)
+    , m_parameterCount(info.m_argumentCount)
 {
+    m_desc.isConstructor = info.m_isConstructor;
+    m_desc.isStrict = info.m_isStrict;
+    m_desc.hasCallNativeFunctionCode = true;
+    m_desc.canUseIndexedVariableStorage = true;
+    m_desc.canAllocateEnvironmentOnStack = true;
+
     auto data = new (PointerFreeGC) CallNativeFunctionData();
     m_nativeFunctionData = (CallNativeFunctionData*)data;
 
@@ -110,36 +90,15 @@ CodeBlock::CodeBlock(Context* ctx, const NativeFunctionInfo& info)
 
 CodeBlock::CodeBlock(Context* ctx, AtomicString name, size_t argc, bool isStrict, bool isCtor, CallNativeFunctionData* info)
     : m_context(ctx)
-    , m_isConstructor(isCtor)
-    , m_isStrict(isStrict)
-    , m_hasCallNativeFunctionCode(true)
-    , m_isFunctionNameSaveOnHeap(false)
-    , m_isFunctionNameExplicitlyDeclared(false)
-    , m_canUseIndexedVariableStorage(true)
-    , m_canAllocateEnvironmentOnStack(true)
-    , m_needsComplexParameterCopy(false)
-    , m_hasEval(false)
-    , m_hasWith(false)
-    , m_hasCatch(false)
-    , m_hasYield(false)
-    , m_inCatch(false)
-    , m_inWith(false)
-    , m_usesArgumentsObject(false)
-    , m_isFunctionExpression(false)
-    , m_isFunctionDeclaration(false)
-    , m_isFunctionDeclarationWithSpecialBinding(false)
-    , m_isArrowFunctionExpression(false)
-    , m_isClassConstructor(false)
-    , m_isGenerator(false)
-    , m_isInWithScope(false)
-    , m_isEvalCodeInFunction(false)
-    , m_needsVirtualIDOperation(false)
-    , m_needToLoadThisValue(false)
-    , m_hasRestElement(false)
-    , m_parameterCount(argc)
     , m_functionName(name)
+    , m_parameterCount(argc)
     , m_nativeFunctionData(info)
 {
+    m_desc.isConstructor = isCtor;
+    m_desc.isStrict = isStrict;
+    m_desc.hasCallNativeFunctionCode = true;
+    m_desc.canUseIndexedVariableStorage = true;
+    m_desc.canAllocateEnvironmentOnStack = true;
 }
 
 InterpretedCodeBlock::InterpretedCodeBlock(Context* ctx, Script* script, StringView src, ASTScopeContext* scopeCtx, ExtendedNodeLOC sourceElementStart)
@@ -158,36 +117,16 @@ InterpretedCodeBlock::InterpretedCodeBlock(Context* ctx, Script* script, StringV
 {
     m_context = ctx;
     m_byteCodeBlock = nullptr;
-
     m_parameterCount = 0;
-    m_isConstructor = false;
-    m_hasCallNativeFunctionCode = false;
-    m_isFunctionDeclaration = false;
-    m_isFunctionDeclarationWithSpecialBinding = false;
-    m_isFunctionExpression = false;
-    m_isArrowFunctionExpression = false;
-    m_isStrict = scopeCtx->m_isStrict;
-    m_isClassConstructor = scopeCtx->m_isClassConstructor;
-    m_isGenerator = scopeCtx->m_isGenerator;
 
-    m_hasEval = scopeCtx->m_hasEval;
-    m_hasWith = scopeCtx->m_hasWith;
-    m_hasCatch = scopeCtx->m_hasCatch;
-    m_hasYield = scopeCtx->m_hasYield;
-    m_inCatch = false;
-    m_inWith = false;
-
-    m_usesArgumentsObject = false;
-    m_canUseIndexedVariableStorage = false;
-    m_canAllocateEnvironmentOnStack = false;
-    m_needsComplexParameterCopy = false;
-    m_isInWithScope = false;
-    m_isEvalCodeInFunction = false;
-    m_needsVirtualIDOperation = false;
-    m_needToLoadThisValue = false;
-    m_hasRestElement = scopeCtx->m_hasRestElement;
-    m_isFunctionNameExplicitlyDeclared = false;
-    m_isFunctionNameSaveOnHeap = false;
+    m_desc.isStrict = scopeCtx->m_isStrict;
+    m_desc.isClassConstructor = scopeCtx->m_isClassConstructor;
+    m_desc.isGenerator = scopeCtx->m_isGenerator;
+    m_desc.hasEval = scopeCtx->m_hasEval;
+    m_desc.hasWith = scopeCtx->m_hasWith;
+    m_desc.hasCatch = scopeCtx->m_hasCatch;
+    m_desc.hasYield = scopeCtx->m_hasYield;
+    m_desc.hasRestElement = scopeCtx->m_hasRestElement;
 
     const ASTScopeContextNameInfoVector& innerIdentifiers = scopeCtx->m_names;
 
@@ -228,32 +167,24 @@ InterpretedCodeBlock::InterpretedCodeBlock(Context* ctx, Script* script, StringV
     m_byteCodeBlock = nullptr;
     m_functionName = scopeCtx->m_functionName;
     m_parameterCount = scopeCtx->m_hasRestElement ? parameterNames.size() - 1 : parameterNames.size();
-    m_isConstructor = true;
-    m_hasCallNativeFunctionCode = false;
-    m_isStrict = scopeCtx->m_isStrict;
-    m_hasEval = scopeCtx->m_hasEval;
-    m_hasWith = scopeCtx->m_hasWith;
-    m_hasCatch = scopeCtx->m_hasCatch;
-    m_hasYield = scopeCtx->m_hasYield;
-    m_inCatch = scopeCtx->m_inCatch;
-    m_inWith = scopeCtx->m_inWith;
-    m_usesArgumentsObject = false;
-    m_isFunctionDeclaration = isFD;
-    m_isFunctionDeclarationWithSpecialBinding = scopeCtx->m_needsSpecialInitialize;
-    m_isFunctionExpression = isFE;
-    m_isArrowFunctionExpression = scopeCtx->m_isArrowFunctionExpression;
-    m_isConstructor = !scopeCtx->m_isArrowFunctionExpression;
-    m_isClassConstructor = scopeCtx->m_isClassConstructor;
-    m_isGenerator = scopeCtx->m_isGenerator;
-    m_isFunctionNameExplicitlyDeclared = false;
-    m_isFunctionNameSaveOnHeap = false;
-    m_needsComplexParameterCopy = false;
-    m_isInWithScope = false;
-    m_isEvalCodeInFunction = false;
-    m_needsVirtualIDOperation = false;
-    m_needToLoadThisValue = false;
-    m_hasRestElement = scopeCtx->m_hasRestElement;
     m_shouldReparseArguments = scopeCtx->m_hasNonIdentArgument;
+
+    m_desc.isConstructor = true;
+    m_desc.isStrict = scopeCtx->m_isStrict;
+    m_desc.hasEval = scopeCtx->m_hasEval;
+    m_desc.hasWith = scopeCtx->m_hasWith;
+    m_desc.hasCatch = scopeCtx->m_hasCatch;
+    m_desc.hasYield = scopeCtx->m_hasYield;
+    m_desc.inCatch = scopeCtx->m_inCatch;
+    m_desc.inWith = scopeCtx->m_inWith;
+    m_desc.isFunctionDeclaration = isFD;
+    m_desc.isFunctionDeclarationWithSpecialBinding = scopeCtx->m_needsSpecialInitialize;
+    m_desc.isFunctionExpression = isFE;
+    m_desc.isArrowFunctionExpression = scopeCtx->m_isArrowFunctionExpression;
+    m_desc.isConstructor = !scopeCtx->m_isArrowFunctionExpression;
+    m_desc.isClassConstructor = scopeCtx->m_isClassConstructor;
+    m_desc.isGenerator = scopeCtx->m_isGenerator;
+    m_desc.hasRestElement = scopeCtx->m_hasRestElement;
 
     m_parametersInfomation.resizeWithUninitializedValues(parameterNames.size());
     for (size_t i = 0; i < parameterNames.size(); i++) {
@@ -261,14 +192,14 @@ InterpretedCodeBlock::InterpretedCodeBlock(Context* ctx, Script* script, StringV
         m_parametersInfomation[i].m_isDuplicated = false;
     }
 
-    m_canUseIndexedVariableStorage = !hasEvalWithYield() && !m_inCatch && !m_inWith && !scopeCtx->m_hasArrowSuper && !m_shouldReparseArguments && !m_isGenerator;
-    m_canAllocateEnvironmentOnStack = m_canUseIndexedVariableStorage;
+    m_desc.canUseIndexedVariableStorage = !hasEvalWithYield() && !m_desc.inCatch && !m_desc.inWith && !scopeCtx->m_hasArrowSuper && !m_shouldReparseArguments && !m_desc.isGenerator;
+    m_desc.canAllocateEnvironmentOnStack = m_desc.canUseIndexedVariableStorage;
 
     const ASTScopeContextNameInfoVector& innerIdentifiers = scopeCtx->m_names;
     for (size_t i = 0; i < innerIdentifiers.size(); i++) {
         IdentifierInfo info;
         info.m_name = innerIdentifiers[i].name();
-        info.m_needToAllocateOnStack = m_canUseIndexedVariableStorage;
+        info.m_needToAllocateOnStack = m_desc.canUseIndexedVariableStorage;
         info.m_isMutable = true;
         info.m_isExplicitlyDeclaredOrParameterName = innerIdentifiers[i].isExplicitlyDeclaredOrParameterName();
         info.m_indexForIndexedStorage = SIZE_MAX;
@@ -289,7 +220,7 @@ void InterpretedCodeBlock::captureThis()
         return;
     }
 
-    m_canAllocateEnvironmentOnStack = false;
+    m_desc.canAllocateEnvironmentOnStack = false;
 
     IdentifierInfo info;
     info.m_name = m_context->staticStrings().stringThis;
@@ -306,11 +237,11 @@ void InterpretedCodeBlock::captureArguments()
     ASSERT(!hasParameter(arguments));
     ASSERT(!isGlobalScopeCodeBlock() && !isArrowFunctionExpression());
 
-    if (m_usesArgumentsObject) {
+    if (m_desc.usesArgumentsObject) {
         return;
     }
 
-    m_usesArgumentsObject = true;
+    m_desc.usesArgumentsObject = true;
     if (!hasName(arguments)) {
         IdentifierInfo info;
         info.m_indexForIndexedStorage = SIZE_MAX;
@@ -320,7 +251,7 @@ void InterpretedCodeBlock::captureArguments()
         m_identifierInfos.pushBack(info);
     }
     if (m_parameterCount) {
-        m_canAllocateEnvironmentOnStack = false;
+        m_desc.canAllocateEnvironmentOnStack = false;
         for (size_t j = 0; j < m_parametersInfomation.size(); j++) {
             for (size_t k = 0; k < m_identifierInfos.size(); k++) {
                 if (m_identifierInfos[k].m_name == m_parametersInfomation[j].m_name) {
@@ -336,7 +267,7 @@ bool InterpretedCodeBlock::tryCaptureIdentifiersFromChildCodeBlock(AtomicString 
 {
     for (size_t i = 0; i < m_identifierInfos.size(); i++) {
         if (m_identifierInfos[i].m_name == name) {
-            m_canAllocateEnvironmentOnStack = false;
+            m_desc.canAllocateEnvironmentOnStack = false;
             m_identifierInfos[i].m_needToAllocateOnStack = false;
             return true;
         }
@@ -346,8 +277,8 @@ bool InterpretedCodeBlock::tryCaptureIdentifiersFromChildCodeBlock(AtomicString 
 
 void InterpretedCodeBlock::notifySelfOrChildHasEvalWithYield()
 {
-    m_canAllocateEnvironmentOnStack = false;
-    m_canUseIndexedVariableStorage = false;
+    m_desc.canAllocateEnvironmentOnStack = false;
+    m_desc.canUseIndexedVariableStorage = false;
 
     for (size_t i = 0; i < m_identifierInfos.size(); i++) {
         m_identifierInfos[i].m_indexForIndexedStorage = SIZE_MAX;
@@ -362,29 +293,29 @@ void InterpretedCodeBlock::notifySelfOrChildHasEvalWithYield()
 
 void InterpretedCodeBlock::computeVariables()
 {
-    if (m_usesArgumentsObject) {
-        m_canAllocateEnvironmentOnStack = false;
+    if (m_desc.usesArgumentsObject) {
+        m_desc.canAllocateEnvironmentOnStack = false;
     }
 
     if (inEvalWithYieldScope() || inNotIndexedCodeBlockScope() || hasCatch()) {
-        m_canAllocateEnvironmentOnStack = false;
+        m_desc.canAllocateEnvironmentOnStack = false;
     }
 
-    if (!m_canAllocateEnvironmentOnStack) {
+    if (!m_desc.canAllocateEnvironmentOnStack) {
         CodeBlock* cb = parentCodeBlock();
         while (cb && cb->isInterpretedCodeBlock()) {
-            cb->m_canAllocateEnvironmentOnStack = false;
+            cb->m_desc.canAllocateEnvironmentOnStack = false;
             cb = cb->asInterpretedCodeBlock()->parentCodeBlock();
         }
     }
 
     if (m_functionName.string()->length()) {
-        if (m_isFunctionExpression) {
+        if (m_desc.isFunctionExpression) {
             // name of function expression is immuable
             for (size_t i = 0; i < m_identifierInfos.size(); i++) {
                 if (m_identifierInfos[i].m_name == m_functionName && !m_identifierInfos[i].m_isExplicitlyDeclaredOrParameterName) {
                     m_identifierInfos[i].m_isMutable = false;
-                    m_needsComplexParameterCopy = true;
+                    m_desc.needsComplexParameterCopy = true;
                     break;
                 }
             }
@@ -393,7 +324,7 @@ void InterpretedCodeBlock::computeVariables()
         for (size_t i = 0; i < m_parametersInfomation.size(); i++) {
             AtomicString name = m_parametersInfomation[i].m_name;
             if (name == m_functionName) {
-                m_needsComplexParameterCopy = true;
+                m_desc.needsComplexParameterCopy = true;
                 break;
             }
         }
@@ -405,17 +336,17 @@ void InterpretedCodeBlock::computeVariables()
 
         for (size_t i = 0; i < m_identifierInfos.size(); i++) {
             if (m_identifierInfos[i].m_name == m_functionName) {
-                m_needsComplexParameterCopy = true;
+                m_desc.needsComplexParameterCopy = true;
                 if (m_identifierInfos[i].m_isExplicitlyDeclaredOrParameterName) {
-                    m_isFunctionNameExplicitlyDeclared = true;
+                    m_desc.isFunctionNameExplicitlyDeclared = true;
                 }
 
                 if (!m_identifierInfos[i].m_needToAllocateOnStack) {
-                    m_isFunctionNameSaveOnHeap = true;
+                    m_desc.isFunctionNameSaveOnHeap = true;
                     m_identifierInfos[i].m_indexForIndexedStorage = h;
                     h++;
                 } else {
-                    if (m_isFunctionNameExplicitlyDeclared) {
+                    if (m_desc.isFunctionNameExplicitlyDeclared) {
                         s++;
                     }
                     m_identifierInfos[i].m_indexForIndexedStorage = 1;
@@ -465,7 +396,7 @@ void InterpretedCodeBlock::computeVariables()
             for (size_t j = 0; j < computedNameIndex.size(); j++) {
                 if (computedNameIndex[j].first == name) {
                     // found dup parameter name!
-                    m_needsComplexParameterCopy = true;
+                    m_desc.needsComplexParameterCopy = true;
                     computed = true;
                     computedIndex = computedNameIndex[j].second;
 
@@ -483,7 +414,7 @@ void InterpretedCodeBlock::computeVariables()
             if (!computed) {
                 if (isHeap) {
                     m_parametersInfomation[i].m_index = indexInIdInfo;
-                    m_needsComplexParameterCopy = true;
+                    m_desc.needsComplexParameterCopy = true;
                     computedNameIndex.push_back(std::make_pair(name, indexInIdInfo));
                 } else {
                     m_parametersInfomation[i].m_index = indexInIdInfo;
@@ -494,9 +425,9 @@ void InterpretedCodeBlock::computeVariables()
             }
         }
     } else {
-        m_needsComplexParameterCopy = true;
+        m_desc.needsComplexParameterCopy = true;
 
-        if (m_isEvalCodeInFunction) {
+        if (m_desc.isEvalCodeInFunction) {
             AtomicString arguments = m_context->staticStrings().arguments;
             for (size_t i = 0; i < m_identifierInfos.size(); i++) {
                 if (m_identifierInfos[i].m_name == arguments) {
@@ -513,9 +444,9 @@ void InterpretedCodeBlock::computeVariables()
 
             if (m_identifierInfos[i].m_name == m_functionName) {
                 if (m_identifierInfos[i].m_isExplicitlyDeclaredOrParameterName) {
-                    m_isFunctionNameExplicitlyDeclared = true;
+                    m_desc.isFunctionNameExplicitlyDeclared = true;
                 }
-                m_isFunctionNameSaveOnHeap = true;
+                m_desc.isFunctionNameSaveOnHeap = true;
                 m_identifierInfos[i].m_indexForIndexedStorage = h;
                 h++;
                 continue;

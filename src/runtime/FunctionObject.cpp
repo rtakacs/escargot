@@ -416,7 +416,7 @@ Value FunctionObject::processCall(ExecutionState& state, const Value& receiverSr
 
     // binding function name
     stackStorage[1] = this;
-    if (UNLIKELY(m_codeBlock->m_isFunctionNameSaveOnHeap)) {
+    if (UNLIKELY(m_codeBlock->m_desc.isFunctionNameSaveOnHeap)) {
         if (m_codeBlock->canUseIndexedVariableStorage()) {
             ASSERT(record->isFunctionEnvironmentRecordOnHeap());
             ((FunctionEnvironmentRecordOnHeap*)record)->m_heapStorage[0] = this;
@@ -425,9 +425,9 @@ Value FunctionObject::processCall(ExecutionState& state, const Value& receiverSr
         }
     }
 
-    if (UNLIKELY(m_codeBlock->m_isFunctionNameExplicitlyDeclared)) {
+    if (UNLIKELY(m_codeBlock->m_desc.isFunctionNameExplicitlyDeclared)) {
         if (m_codeBlock->canUseIndexedVariableStorage()) {
-            if (UNLIKELY(m_codeBlock->m_isFunctionNameSaveOnHeap)) {
+            if (UNLIKELY(m_codeBlock->m_desc.isFunctionNameSaveOnHeap)) {
                 ASSERT(record->isFunctionEnvironmentRecordOnHeap());
                 ((FunctionEnvironmentRecordOnHeap*)record)->m_heapStorage[0] = Value();
             } else {
@@ -453,7 +453,7 @@ Value FunctionObject::processCall(ExecutionState& state, const Value& receiverSr
             }
 
             // Handle rest param
-            if (m_codeBlock->m_hasRestElement) {
+            if (m_codeBlock->m_desc.hasRestElement) {
                 size_t argListLen = (size_t)m_codeBlock->parameterCount();
                 size_t arrayLen = argc - parameterCopySize;
                 ArrayObject* newArray = new ArrayObject(state, (double)arrayLen);
@@ -483,7 +483,7 @@ Value FunctionObject::processCall(ExecutionState& state, const Value& receiverSr
             }
 
             // Handle rest param
-            if (m_codeBlock->m_hasRestElement) {
+            if (m_codeBlock->m_desc.hasRestElement) {
                 size_t argListLen = (size_t)m_codeBlock->parameterCount();
                 size_t arrayLen = argc - parameterCopySize;
                 ArrayObject* newArray = new ArrayObject(state, (double)arrayLen);
@@ -510,7 +510,7 @@ Value FunctionObject::processCall(ExecutionState& state, const Value& receiverSr
         }
 
         // Handle rest param
-        if (m_codeBlock->m_hasRestElement) {
+        if (m_codeBlock->m_desc.hasRestElement) {
             size_t argListLen = (size_t)m_codeBlock->parameterCount();
             size_t arrayLen = argc - parameterCopySize;
             ArrayObject* newArray = new ArrayObject(state, (double)arrayLen);

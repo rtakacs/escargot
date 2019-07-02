@@ -69,6 +69,38 @@ struct NativeFunctionInfo {
     }
 };
 
+struct BlockDescriptor {
+    bool isConstructor = false;
+    bool isStrict = false;
+    bool hasCallNativeFunctionCode = false;
+    bool isFunctionNameSaveOnHeap = false;
+    bool isFunctionNameExplicitlyDeclared = false;
+    bool canUseIndexedVariableStorage = false;
+    bool canAllocateEnvironmentOnStack = false;
+    bool needsComplexParameterCopy = false;
+    bool hasEval = false;
+    bool hasWith = false;
+    bool hasSuper = false;
+    bool hasCatch = false;
+    bool hasYield = false;
+    bool inCatch = false;
+    bool inWith = false;
+    bool usesArgumentsObject = false;
+    bool isFunctionExpression = false;
+    bool isFunctionDeclaration = false;
+    bool isFunctionDeclarationWithSpecialBinding = false;
+    bool isArrowFunctionExpression = false;
+    bool isClassConstructor = false;
+    bool isGenerator = false;
+    bool isInWithScope = false;
+    bool isEvalCodeInFunction = false;
+    bool needsVirtualIDOperation = false;
+    bool needToLoadThisValue = false;
+    bool hasRestElement = false;
+};
+
+typedef struct BlockDescriptor BlockDescriptor;
+
 class CallNativeFunctionData : public gc {
 public:
     NativeFunctionPointer m_fn;
@@ -110,104 +142,109 @@ public:
         return m_context;
     }
 
+    BlockDescriptor descriptor()
+    {
+        return m_desc;
+    }
+
     bool isConstructor() const
     {
-        return m_isConstructor;
+        return m_desc.isConstructor;
     }
 
     bool inCatchWith()
     {
-        return m_inCatch || m_inWith;
+        return m_desc.inCatch || m_desc.inWith;
     }
 
     bool hasEval() const
     {
-        return m_hasEval;
+        return m_desc.hasEval;
     }
 
     bool hasWith() const
     {
-        return m_hasWith;
+        return m_desc.hasWith;
     }
 
     bool hasCatch() const
     {
-        return m_hasCatch;
+        return m_desc.hasCatch;
     }
 
     bool hasYield() const
     {
-        return m_hasYield;
+        return m_desc.hasYield;
     }
 
     bool hasEvalWithYield() const
     {
-        return m_hasEval || m_hasWith || m_hasYield;
+        return m_desc.hasEval || m_desc.hasWith || m_desc.hasYield;
     }
 
     bool isStrict() const
     {
-        return m_isStrict;
+        return m_desc.isStrict;
     }
 
     bool canUseIndexedVariableStorage() const
     {
-        return m_canUseIndexedVariableStorage;
+        return m_desc.canUseIndexedVariableStorage;
     }
 
     bool canAllocateEnvironmentOnStack() const
     {
-        return m_canAllocateEnvironmentOnStack;
+        return m_desc.canAllocateEnvironmentOnStack;
     }
 
     bool isFunctionDeclaration() const
     {
-        return m_isFunctionDeclaration;
+        return m_desc.isFunctionDeclaration;
     }
 
     bool isFunctionDeclarationWithSpecialBinding() const
     {
-        return m_isFunctionDeclarationWithSpecialBinding;
+        return m_desc.isFunctionDeclarationWithSpecialBinding;
     }
 
     bool isFunctionExpression() const
     {
-        return m_isFunctionExpression;
+        return m_desc.isFunctionExpression;
     }
 
     bool isArrowFunctionExpression() const
     {
-        return m_isArrowFunctionExpression;
+        return m_desc.isArrowFunctionExpression;
     }
 
     bool isClassConstructor() const
     {
-        return m_isClassConstructor;
+        return m_desc.isClassConstructor;
     }
 
     bool isGenerator() const
     {
-        return m_isGenerator;
+        return m_desc.isGenerator;
     }
 
     bool needToLoadThisValue() const
     {
-        return m_needToLoadThisValue;
+        return m_desc.needToLoadThisValue;
     }
 
     void setNeedToLoadThisValue()
     {
-        m_needToLoadThisValue = true;
+        m_desc.needToLoadThisValue = true;
     }
 
     bool hasCallNativeFunctionCode() const
     {
-        return m_hasCallNativeFunctionCode;
+        return m_desc.hasCallNativeFunctionCode;
     }
 
     bool usesArgumentsObject() const
     {
-        return m_usesArgumentsObject;
+        return m_desc.usesArgumentsObject;
     }
 
     AtomicString functionName() const
@@ -217,44 +254,44 @@ public:
 
     bool needsComplexParameterCopy() const
     {
-        return m_needsComplexParameterCopy;
+        return m_desc.needsComplexParameterCopy;
     }
 
     void setInWithScope()
     {
-        m_isInWithScope = true;
+        m_desc.isInWithScope = true;
     }
 
     void clearInWithScope()
     {
-        m_isInWithScope = false;
+        m_desc.isInWithScope = false;
     }
 
     bool isInWithScope() const
     {
-        return m_isInWithScope;
+        return m_desc.isInWithScope;
     }
 
     void setHasEval()
     {
-        m_hasEval = true;
-        m_canUseIndexedVariableStorage = false;
+        m_desc.hasEval = true;
+        m_desc.canUseIndexedVariableStorage = false;
     }
 
     void setAsClassConstructor()
     {
-        m_isClassConstructor = true;
+        m_desc.isClassConstructor = true;
     }
 
     void setNeedsVirtualIDOperation()
     {
         ASSERT(isInterpretedCodeBlock());
-        m_needsVirtualIDOperation = true;
+        m_desc.needsVirtualIDOperation = true;
     }
 
     bool needsVirtualIDOperation()
     {
-        return m_needsVirtualIDOperation;
+        return m_desc.needsVirtualIDOperation;
     }
 
     uint16_t parameterCount()
@@ -264,12 +301,12 @@ public:
 
     bool isInterpretedCodeBlock()
     {
-        return !m_hasCallNativeFunctionCode;
+        return !m_desc.hasCallNativeFunctionCode;
     }
 
     InterpretedCodeBlock* asInterpretedCodeBlock()
     {
-        ASSERT(!m_hasCallNativeFunctionCode);
+        ASSERT(!m_desc.hasCallNativeFunctionCode);
         return (InterpretedCodeBlock*)this;
     }
 
@@ -282,36 +319,9 @@ protected:
     CodeBlock() {}
     Context* m_context;
 
-    bool m_isConstructor : 1;
-    bool m_isStrict : 1;
-    bool m_hasCallNativeFunctionCode : 1;
-    bool m_isFunctionNameSaveOnHeap : 1;
-    bool m_isFunctionNameExplicitlyDeclared : 1;
-    bool m_canUseIndexedVariableStorage : 1;
-    bool m_canAllocateEnvironmentOnStack : 1;
-    bool m_needsComplexParameterCopy : 1;
-    bool m_hasEval : 1;
-    bool m_hasWith : 1;
-    bool m_hasSuper : 1;
-    bool m_hasCatch : 1;
-    bool m_hasYield : 1;
-    bool m_inCatch : 1;
-    bool m_inWith : 1;
-    bool m_usesArgumentsObject : 1;
-    bool m_isFunctionExpression : 1;
-    bool m_isFunctionDeclaration : 1;
-    bool m_isFunctionDeclarationWithSpecialBinding : 1;
-    bool m_isArrowFunctionExpression : 1;
-    bool m_isClassConstructor : 1;
-    bool m_isGenerator : 1;
-    bool m_isInWithScope : 1;
-    bool m_isEvalCodeInFunction : 1;
-    bool m_needsVirtualIDOperation : 1;
-    bool m_needToLoadThisValue : 1;
-    bool m_hasRestElement : 1;
-    uint16_t m_parameterCount;
-
+    BlockDescriptor m_desc;
     AtomicString m_functionName;
+    uint16_t m_parameterCount;
 
     union {
         Node* m_cachedASTNode;

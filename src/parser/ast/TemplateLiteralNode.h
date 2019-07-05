@@ -56,7 +56,6 @@ public:
     {
         ASSERT(m_expressions.size() + 1 == m_quasis->size());
         String* str = new UTF16String(std::move((*m_quasis)[0]->value));
-        codeBlock->m_literalData.push_back(str);
         codeBlock->pushCode(LoadLiteral(ByteCodeLOC(m_loc.index), dstRegister, Value(str)), context, this);
 
         for (size_t i = 0; i < m_expressions.size(); i++) {
@@ -67,7 +66,6 @@ public:
 
             String* str = new UTF16String(std::move((*m_quasis)[i + 1]->value));
             if (str->length()) {
-                codeBlock->m_literalData.push_back(str);
                 size_t reg = context->getRegister();
                 codeBlock->pushCode(LoadLiteral(ByteCodeLOC(m_loc.index), reg, Value(str)), context, this);
                 codeBlock->pushCode(TemplateOperation(ByteCodeLOC(m_loc.index), dstRegister, reg, dstRegister), context, this);

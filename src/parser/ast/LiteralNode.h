@@ -38,9 +38,6 @@ public:
     const Value& value() { return m_value; }
     virtual void generateExpressionByteCode(ByteCodeBlock* codeBlock, ByteCodeGenerateContext* context, ByteCodeRegisterIndex dstRegister)
     {
-        if (m_value.isPointerValue()) {
-            codeBlock->m_literalData.pushBack(m_value.asPointerValue());
-        }
         if (dstRegister < REGULAR_REGISTER_LIMIT + VARIABLE_LIMIT) {
             codeBlock->pushCode(LoadLiteral(ByteCodeLOC(m_loc.index), dstRegister, m_value), context, this);
         }

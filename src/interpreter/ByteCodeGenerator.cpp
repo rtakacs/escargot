@@ -81,7 +81,6 @@ void ByteCodeGenerateContext::morphJumpPositionIntoComplexCase(ByteCodeBlock* cb
     auto iter = m_complexCaseStatementPositions.find(codePos);
     if (iter != m_complexCaseStatementPositions.end()) {
         ControlFlowRecord* r = new ControlFlowRecord(ControlFlowRecord::ControlFlowReason::NeedsJump, (cb->peekCode<Jump>(codePos)->m_jumpPosition), iter->second, outerLimitCount);
-        m_byteCodeBlock->m_literalData.pushBack(r);
         JumpComplexCase j(cb->peekCode<Jump>(codePos), r);
         memcpy(cb->m_code.data() + codePos, &j, sizeof(JumpComplexCase));
         m_complexCaseStatementPositions.erase(iter);
@@ -222,7 +221,6 @@ ByteCodeBlock* ByteCodeGenerator::generateByteCode(Context* c, InterpretedCodeBl
         char* data = (char*)GC_MALLOC_ATOMIC(err.m_message.size());
         memcpy(data, err.m_message.data(), err.m_message.size());
         data[err.m_message.size()] = 0;
-        block->m_literalData.pushBack(data);
         ThrowStaticErrorOperation code(ByteCodeLOC(err.m_index), ErrorObject::SyntaxError, data);
         block->m_code.resize(sizeof(ThrowStaticErrorOperation));
         memcpy(block->m_code.data(), &code, sizeof(ThrowStaticErrorOperation));

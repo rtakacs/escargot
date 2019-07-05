@@ -2012,7 +2012,6 @@ public:
 
 typedef Vector<char, std::allocator<char>, 200> ByteCodeBlockData;
 typedef std::vector<std::pair<size_t, size_t>, std::allocator<std::pair<size_t, size_t>>> ByteCodeLOCData;
-typedef Vector<void*, GCUtil::gc_malloc_ignore_off_page_allocator<void*>> ByteCodeLiteralData;
 typedef Vector<Value, std::allocator<Value>> ByteCodeNumeralLiteralData;
 typedef std::unordered_set<ObjectStructure*, std::hash<ObjectStructure*>, std::equal_to<ObjectStructure*>,
                            GCUtil::gc_malloc_ignore_off_page_allocator<ObjectStructure*>>
@@ -2198,7 +2197,6 @@ public:
     {
         size_t siz = m_code.size();
         siz += m_locData ? (m_locData->size() * sizeof(std::pair<size_t, size_t>)) : 0;
-        siz += m_literalData.size() * sizeof(size_t);
         siz += m_objectStructuresInUse->size() * sizeof(size_t);
         siz += m_getObjectCodePositions.size() * sizeof(size_t);
         return siz;
@@ -2215,7 +2213,6 @@ public:
 
     ByteCodeBlockData m_code;
     ByteCodeNumeralLiteralData m_numeralLiteralData;
-    ByteCodeLiteralData m_literalData;
     ObjectStructuresInUse* m_objectStructuresInUse;
 
     ByteCodeLOCData* m_locData;

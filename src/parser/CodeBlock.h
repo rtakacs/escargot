@@ -84,6 +84,7 @@ class CodeBlock : public gc {
     friend class FunctionObject;
     friend class InterpretedCodeBlock;
     friend int getValidValueInCodeBlock(void* ptr, GC_mark_custom_result* arr);
+    friend class Snapshot;
 
 public:
     void* operator new(size_t size);
@@ -332,6 +333,7 @@ class InterpretedCodeBlock : public CodeBlock {
     friend class ByteCodeGenerator;
     friend class FunctionObject;
     friend class ByteCodeInterpreter;
+    friend class Snapshot;
 
     friend int getValidValueInInterpretedCodeBlock(void* ptr, GC_mark_custom_result* arr);
 
@@ -370,6 +372,11 @@ public:
     const IdentifierInfoVector& identifierInfos() const
     {
         return m_identifierInfos;
+    }
+
+    const AtomicStringVector& usingNames() const
+    {
+        return m_usingNames;
     }
 
     size_t identifierOnStackCount() const
@@ -574,6 +581,7 @@ public:
     void* operator new[](size_t size) = delete;
 
 protected:
+    InterpretedCodeBlock(Context* ctx);
     // init global codeBlock
     InterpretedCodeBlock(Context* ctx, Script* script, StringView src, ASTScopeContext* scopeCtx, ExtendedNodeLOC sourceElementStart);
     // init function codeBlock
@@ -590,6 +598,7 @@ protected:
     uint16_t m_identifierOnHeapCount;
     size_t m_lexicalBlockIndex;
     IdentifierInfoVector m_identifierInfos;
+    AtomicStringVector m_usingNames;
 
     InterpretedCodeBlock* m_parentCodeBlock;
     CodeBlockVector m_childBlocks;

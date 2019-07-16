@@ -1806,6 +1806,8 @@ ALWAYS_INLINE void ByteCodeInterpreter::setObjectPreComputedCaseOperation(Execut
         }
     }
 
+    printf("--*> %s\n", name.plainString()->toUTF8StringData().data());
+
     setObjectPreComputedCaseOperationCacheMiss(state, originalObject, willBeObject, name, value, inlineCache, block);
 }
 

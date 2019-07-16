@@ -30,6 +30,7 @@ class Context;
 class Script : public gc {
     friend class ScriptParser;
     friend class GlobalObject;
+    friend class Snapshot;
     Script(String* fileName, String* src)
         : m_fileName(fileName)
         , m_src(src)

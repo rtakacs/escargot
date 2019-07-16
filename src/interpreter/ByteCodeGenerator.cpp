@@ -138,7 +138,7 @@ void ByteCodeGenerator::generateLoadThisValueByteCode(ByteCodeBlock* block, Byte
     }
 }
 
-static const uint8_t byteCodeLengths[] = {
+const uint8_t byteCodeLengths[] = {
 #define ITER_BYTE_CODE(code, pushCount, popCount) \
     (uint8_t)sizeof(code),
 
@@ -151,6 +151,11 @@ ByteCodeBlock* ByteCodeGenerator::generateByteCode(Context* c, InterpretedCodeBl
     ByteCodeBlock* block = new ByteCodeBlock(codeBlock);
     block->m_isEvalMode = isEvalMode;
     block->m_isOnGlobal = isOnGlobal;
+
+    if (scopeCtx == nullptr)
+    {
+        scopeCtx = ((ProgramNode*)ast)->scopeContext();
+    }
 
     bool isGlobalScope;
     if (!isEvalMode) {
@@ -251,7 +256,6 @@ ByteCodeBlock* ByteCodeGenerator::generateByteCode(Context* c, InterpretedCodeBl
         ByteCodeRegisterIndex stackVariableSize = codeBlock->identifierOnStackCount();
 
         char* code = block->m_code.data();
-        size_t codeBase = (size_t)code;
         char* end = code + block->m_code.size();
 
         while (code < end) {
@@ -261,8 +265,6 @@ ByteCodeBlock* ByteCodeGenerator::generateByteCode(Context* c, InterpretedCodeBl
 #else
             Opcode opcode = currentCode->m_opcode;
 #endif
-            currentCode->assignOpcodeInAddress();
-
             switch (opcode) {
             case LoadLiteralOpcode: {
                 LoadLiteral* cd = (LoadLiteral*)currentCode;
@@ -469,33 +471,24 @@ ByteCodeBlock* ByteCodeGenerator::generateByteCode(Context* c, InterpretedCodeBl
                 assignStackIndexIfNeeded(cd->m_resultIndex, stackBase, stackBaseWillBe, stackVariableSize);
                 break;
             }
-            case JumpOpcode: {
-                Jump* cd = (Jump*)currentCode;
-                cd->m_jumpPosition = cd->m_jumpPosition + codeBase;
-                break;
-            }
             case JumpIfTrueOpcode: {
                 JumpIfTrue* cd = (JumpIfTrue*)currentCode;
-                cd->m_jumpPosition = cd->m_jumpPosition + codeBase;
                 assignStackIndexIfNeeded(cd->m_registerIndex, stackBase, stackBaseWillBe, stackVariableSize);
                 break;
             }
             case JumpIfFalseOpcode: {
                 JumpIfFalse* cd = (JumpIfFalse*)currentCode;
-                cd->m_jumpPosition = cd->m_jumpPosition + codeBase;
                 assignStackIndexIfNeeded(cd->m_registerIndex, stackBase, stackBaseWillBe, stackVariableSize);
                 break;
             }
             case JumpIfRelationOpcode: {
                 JumpIfRelation* cd = (JumpIfRelation*)currentCode;
-                cd->m_jumpPosition = cd->m_jumpPosition + codeBase;
                 assignStackIndexIfNeeded(cd->m_registerIndex0, stackBase, stackBaseWillBe, stackVariableSize);
                 assignStackIndexIfNeeded(cd->m_registerIndex1, stackBase, stackBaseWillBe, stackVariableSize);
                 break;
             }
             case JumpIfEqualOpcode: {
                 JumpIfEqual* cd = (JumpIfEqual*)currentCode;
-                cd->m_jumpPosition = cd->m_jumpPosition + codeBase;
                 assignStackIndexIfNeeded(cd->m_registerIndex0, stackBase, stackBaseWillBe, stackVariableSize);
                 assignStackIndexIfNeeded(cd->m_registerIndex1, stackBase, stackBaseWillBe, stackVariableSize);
                 break;

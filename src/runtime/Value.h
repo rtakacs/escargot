@@ -99,6 +99,7 @@ public:
     enum { Int32Tag = 0xfffffffe - 0 };
     enum { OtherPointerTag = 0xfffffffe - 2 };
     enum { ObjectPointerTag = 0xfffffffe - 4 };
+    enum { SnapshotIndexTag = 0xfffffffe - 6 };
 
     COMPILE_ASSERT((size_t)LowestTag < (size_t)ObjectPointerTag, "");
 #endif
@@ -112,6 +113,7 @@ public:
     enum ForceUninitializedTag { ForceUninitialized };
     enum FromPayloadTag { FromPayload };
     enum FromTagTag { FromTag };
+    enum SnapshotTag { SnapshotIndex };
 
     Value();
     explicit Value(ForceUninitializedTag);
@@ -133,7 +135,8 @@ public:
     Value(const String* ptr);
     explicit Value(FromTagTag, uint32_t tag);
 #endif
-
+    // Only for snapshot.
+    explicit Value(SnapshotTag, int32_t index);
     // Numbers
     Value(EncodeAsDoubleTag, double);
     explicit Value(double);
@@ -176,6 +179,8 @@ public:
     inline bool isFunction() const;
     inline bool isUndefined() const;
     inline bool isNull() const;
+    inline bool isSnapshotIndex() const;
+    inline int32_t asSnapshotIndex() const;
     inline bool isUndefinedOrNull() const
     {
         return isUndefined() || isNull();
@@ -246,6 +251,9 @@ public:
 // If all bits in the mask are set, this indicates an integer number,
 // if any but not all are set this value is a double precision number.
 #define TagTypeNumber 0xffff000000000000ll
+// Snapshot replaces pointers with simple indexes. This type helps to
+// recognize that type and resolve the index to pointer at the executor phase.
+#define TagTypeSnapshotIndex 0xfffd000000000000ll
 
 // TagMask is used to check for all types of immediate values (either number or 'other').
 #define TagMask (TagTypeNumber | TagBitTypeOther)

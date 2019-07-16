@@ -34,6 +34,7 @@ class AtomicString : public gc {
     friend class PropertyName;
     friend class ASTScopeContextNameInfo;
     friend class AtomicStringRef;
+    friend class Snapshot;
     inline explicit AtomicString(String* str)
     {
         m_string = str;
@@ -68,6 +69,11 @@ public:
     inline String* string() const
     {
         return m_string;
+    }
+
+    void value(String* str)
+    {
+        m_string = str;
     }
 
     inline friend bool operator==(const AtomicString& a, const AtomicString& b);

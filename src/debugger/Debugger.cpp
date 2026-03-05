@@ -1123,7 +1123,11 @@ void DebuggerRemote::init(const char*, Context*)
 
 void Debugger::createDebuggerRemote(const char* options, Context* context)
 {
-    DebuggerRemote* debugger = new DebuggerTcp();
+    DebuggerRemote* debugger = DebuggerTcp::createDebugger(options, context);
+    if (!debugger) {
+        ESCARGOT_LOG_ERROR("Error happened during creating debugger.");
+        ASSERT_NOT_REACHED();
+    }
 
     debugger->init(options, context);
 }

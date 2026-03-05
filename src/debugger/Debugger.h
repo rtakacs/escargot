@@ -177,6 +177,8 @@ public:
 
     void pumpDebuggerEvents(ExecutionState* state);
 
+    void enable(Context* context);
+
 protected:
     Debugger()
         : m_delay(ESCARGOT_DEBUGGER_MESSAGE_PROCESS_DELAY)
@@ -193,7 +195,6 @@ protected:
         return m_context != nullptr;
     }
 
-    void enable(Context* context);
     void disable();
 
     virtual bool processEvents(ExecutionState* state, Optional<ByteCodeBlock*> byteCodeBlock, bool isBlockingRequest = true) = 0;

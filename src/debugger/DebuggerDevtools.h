@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-present Samsung Electronics Co., Ltd
+ * Copyright (c) 2026-present Samsung Electronics Co., Ltd
  *
  *  This library is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU Lesser General Public
@@ -17,8 +17,8 @@
  *  USA
  */
 
-#ifndef __DebuggerTcp__
-#define __DebuggerTcp__
+#ifndef __DebuggerDevtools__
+#define __DebuggerDevtools__
 
 #include "Debugger.h"
 
@@ -32,9 +32,9 @@ typedef SOCKET EscargotSocket;
 typedef int EscargotSocket;
 #endif /* WIN32 */
 
-class DebuggerTcp : public DebuggerRemote {
+class DebuggerDevtools : public DebuggerRemote {
 public:
-    DebuggerTcp(EscargotSocket socket, String* skipSource)
+    DebuggerDevtools(EscargotSocket socket, String* skipSource)
         : m_socket(socket)
         , m_receiveBuffer{}
         , m_receiveBufferFill(0)
@@ -43,19 +43,22 @@ public:
     {
     }
 
-    static DebuggerRemote* createDebugger(const char* options, Context* context);
     virtual void init(const char* options, Context* context);
-
     virtual bool skipSourceCode(String* srcName) const override;
-
-    static void computeSha1(const uint8_t* source1, size_t source1Length,
-                            const uint8_t* source2, size_t source2Length,
-                            uint8_t destination[20]);
-
-    static bool tcpReceive(EscargotSocket socket, uint8_t* message, size_t maxLength, size_t* receivedLength); 
+    static bool tcpReceive(EscargotSocket socket, uint8_t* message, size_t maxLength, size_t* receivedLength);
     static bool tcpSend(EscargotSocket socket, const uint8_t* message, size_t messageLength);
 
+    virtual void parseCompleted(String* source, String* srcName, size_t originLineOffset, String* error = nullptr) override;
+    virtual void stopAtBreakpoint(ByteCodeBlock* byteCodeBlock, uint32_t offset, ExecutionState* state) override;
+    virtual void byteCodeReleaseNotification(ByteCodeBlock* byteCodeBlock) override;
+    virtual void exceptionCaught(String* message, SavedStackTraceDataVector& exceptionTrace) override;
+    virtual void consoleOut(String* output) override;
+    virtual String* getClientSource(String** sourceName) override;
+    virtual bool getWaitBeforeExitClient() override;
+
 protected:
+    virtual bool processEvents(ExecutionState* state, Optional<ByteCodeBlock*> byteCodeBlock, bool isBlockingRequest = true) override;
+
     virtual bool send(uint8_t type, const void* buffer, size_t length) override;
     virtual bool receive(uint8_t* buffer, size_t& length) override;
     virtual bool isThereAnyEvent() override;

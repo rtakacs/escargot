@@ -1,0 +1,276 @@
+/*
+ * Copyright (c) 2026-present Samsung Electronics Co., Ltd
+ *
+ *  This library is free software; you can redistribute it and/or
+ *  modify it under the terms of the GNU Lesser General Public
+ *  License as published by the Free Software Foundation; either
+ *  version 2.1 of the License, or (at your option) any later version.
+ *
+ *  This library is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ *  Lesser General Public License for more details.
+ *
+ *  You should have received a copy of the GNU Lesser General Public
+ *  License along with this library; if not, write to the Free Software
+ *  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
+ *  USA
+ */
+
+#include "Escargot.h"
+#include "DebuggerHttpRouter.h"
+#include "DebuggerTcp.h"
+
+#ifdef ESCARGOT_DEBUGGER
+namespace Escargot {
+
+static uint8_t toBase64Character(uint8_t value)
+{
+    if (value < 26) {
+        return (uint8_t)(value + 'A');
+    }
+
+    if (value < 52) {
+        return (uint8_t)(value - 26 + 'a');
+    }
+
+    if (value < 62) {
+        return (uint8_t)(value - 52 + '0');
+    }
+
+    if (value == 62) {
+        return (uint8_t)'+';
+    }
+
+    return (uint8_t)'/';
+}
+
+/**
+ * Encode a byte sequence into Base64 string.
+ */
+static void toBase64(const uint8_t* source, uint8_t* destination, size_t length)
+{
+    while (length >= 3) {
+        uint8_t value = (source[0] >> 2);
+        destination[0] = toBase64Character(value);
+
+        value = (uint8_t)(((source[0] << 4) | (source[1] >> 4)) & 0x3f);
+        destination[1] = toBase64Character(value);
+
+        value = (uint8_t)(((source[1] << 2) | (source[2] >> 6)) & 0x3f);
+        destination[2] = toBase64Character(value);
+
+        value = (uint8_t)(source[2] & 0x3f);
+        destination[3] = toBase64Character(value);
+
+        source += 3;
+        destination += 4;
+        length -= 3;
+    }
+}
+
+static bool requestStartsWith(const uint8_t* buffer, size_t lenght, const char* prefix)
+{
+    size_t prefixLenght = strlen(prefix);
+    if (lenght < prefixLenght)
+        return false;
+
+    return memcmp(buffer, prefix, prefixLenght) == 0;
+}
+
+static bool buildHttpResponse(const char* body, uint8_t* buffer, size_t bufferSize, size_t& outLen)
+{
+    size_t bodyLen = strlen(body);
+
+    int len = snprintf((char*)buffer, bufferSize,
+        "HTTP/1.1 200 OK\r\n"
+        "Content-Type: application/json; charset=UTF-8\r\n"
+        "Cache-Control: no-cache\r\n"
+        "Content-Length: %zu\r\n"
+        "Connection: close\r\n"
+        "\r\n"
+        "%s",
+        bodyLen,
+        body);
+
+    if (len < 0 || (size_t)len >= bufferSize)
+        return false;
+
+    outLen = (size_t)len;
+    return true;
+}
+
+static bool buildVersionResponse(uint8_t* buffer, size_t bufferSize, size_t& outLen)
+{
+    static constexpr const char body[] =
+        "{"
+        "\"Browser\":\"Escargot/1.0\","
+        "\"Protocol-Version\":\"1.3\""
+        "}";
+
+    return buildHttpResponse(body, buffer, bufferSize, outLen);
+}
+
+static bool buildListResponse(uint8_t* buffer, size_t bufferSize, uint16_t port, size_t& outLen)
+{
+    char body[512];
+
+    int bodyLen = snprintf(body, sizeof(body),
+        "[{"
+        "\"description\":\"Escargot CDP target\","
+        "\"devtoolsFrontendUrl\":\"/devtools/inspector.html?ws=127.0.0.1:%u/devtools/page/1\","
+        "\"id\":\"1\","
+        "\"title\":\"Escargot\","
+        "\"type\":\"node\","
+        "\"url\":\"file:///\","
+        "\"webSocketDebuggerUrl\":\"ws://127.0.0.1:%u/devtools/page/1\""
+        "}]",
+        (unsigned)port, (unsigned)port);
+
+    if (bodyLen < 0)
+        return false;
+
+    return buildHttpResponse(body, buffer, bufferSize, outLen);
+}
+
+static bool webSocketHandshake(EscargotSocket socket, uint8_t* buffer, size_t length)
+{
+    uint8_t* websocketKey = buffer;
+
+    const char expectedWebsocketKey[] = "Sec-WebSocket-Key:";
+    const size_t expectedWebsocketKeyLength = sizeof(expectedWebsocketKey) - 1;
+
+    while (true) {
+        if (length < expectedWebsocketKeyLength) {
+            ESCARGOT_LOG_ERROR("Sec-WebSocket-Key not found.\n");
+            return false;
+        }
+
+        if (websocketKey[0] == 'S'
+            && websocketKey[-1] == '\n'
+            && websocketKey[-2] == '\r'
+            && memcmp(websocketKey, expectedWebsocketKey, expectedWebsocketKeyLength) == 0) {
+            websocketKey += expectedWebsocketKeyLength;
+            break;
+        }
+
+        websocketKey++;
+    }
+
+    /* String terminated by double newlines. */
+    while (*websocketKey == ' ') {
+        websocketKey++;
+    }
+
+    uint8_t* websocketKeyEnd = websocketKey;
+
+    while (*websocketKeyEnd > ' ') {
+        websocketKeyEnd++;
+    }
+
+    /* Since the buffer is not needed anymore it can
+     * be reused for storing the SHA-1 key and Base64 string. */
+    const size_t sha1Length = 20;
+
+    DebuggerTcp::computeSha1(websocketKey,
+                             (size_t)(websocketKeyEnd - websocketKey),
+                             (const uint8_t*)"258EAFA5-E914-47DA-95CA-C5AB0DC85B11",
+                             36,
+                             buffer);
+
+    /* The SHA-1 key is 20 bytes long but toBase64 expects a length
+     * divisible by 3 so an extra 0 is appended at the end. */
+    buffer[sha1Length] = 0;
+
+    toBase64(buffer, buffer + sha1Length + 1, sha1Length + 1);
+
+    /* Last value must be replaced by equal sign. */
+    const uint8_t responsePrefix[] = "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ";
+
+    if (!DebuggerTcp::tcpSend(socket, responsePrefix, sizeof(responsePrefix) - 1)
+        || !DebuggerTcp::tcpSend(socket, buffer + sha1Length + 1, 27)) {
+        return false;
+    }
+
+    const uint8_t responseSuffix[] = "=\r\n\r\n";
+    return DebuggerTcp::tcpSend(socket, responseSuffix, sizeof(responseSuffix) - 1);
+}
+
+DebuggerHttpRouter::DebuggerHttpRouter()
+    : m_client(DebuggerClient::None)
+{
+}
+
+bool DebuggerHttpRouter::webSocketEstablished() const
+{
+    return m_client != DebuggerClient::None;
+}
+
+DebuggerClient DebuggerHttpRouter::client() const
+{
+    return m_client;
+}
+
+bool DebuggerHttpRouter::handleHttpRequest(EscargotSocket socket, uint16_t port)
+{
+    // TODO: move message reciving to readHttpMessage helper
+    uint8_t buffer[1024];
+    size_t remainingLength = sizeof(buffer);
+    uint8_t* message = buffer;
+
+    while (true) {
+        size_t receivedLength;
+        if (!DebuggerTcp::tcpReceive(socket, message, remainingLength, &receivedLength)) {
+            return false;
+        }
+
+        message += receivedLength;
+        remainingLength -= receivedLength;
+
+        if (message > (buffer + 4) && memcmp(message - 4, "\r\n\r\n", 4) == 0) {
+            break;
+        }
+
+        if (remainingLength == 0) {
+            ESCARGOT_LOG_ERROR("WebSocket Error: Request too long\n");
+            return false;
+        }
+    }
+
+    size_t messageLength = message - buffer;
+    size_t protocolLength = 0;
+
+    static constexpr const char escargotProtocol[] = "GET /escargot-debugger";
+    static constexpr const char devtoolsProtocol[] = "GET /devtools/page/1";
+
+    if (requestStartsWith(buffer, messageLength, escargotProtocol)) {
+        m_client = DebuggerClient::Escargot;
+        protocolLength = sizeof(escargotProtocol) - 1;
+    } else if (requestStartsWith(buffer, messageLength, devtoolsProtocol)) {
+        m_client = DebuggerClient::DevTools;
+        protocolLength = sizeof(devtoolsProtocol) - 1;
+    }
+
+    if (m_client != DebuggerClient::None) {
+        return webSocketHandshake(socket, buffer + protocolLength, messageLength - protocolLength);
+    }
+
+    size_t responseLength = 0;
+
+    if (requestStartsWith(buffer, messageLength, "GET /json/version")) {
+        if (!buildVersionResponse(buffer, sizeof(buffer), responseLength)) {
+            return false;
+        }
+    } else if (requestStartsWith(buffer, messageLength, "GET /json/list")) {
+        if (!buildListResponse(buffer, sizeof(buffer), port, responseLength)) {
+            return false;
+        }
+    } else {
+        ESCARGOT_LOG_ERROR("Unsupported http request\n");
+        return false;
+    }
+
+    return DebuggerTcp::tcpSend(socket, buffer, responseLength);
+}
+} // namespace Escargot
+#endif /* ESCARGOT_DEBUGGER */

@@ -36,16 +36,32 @@ enum class DebuggerClient : uint8_t {
     DevTools
 };
 
+struct RequestContext {
+    EscargotSocket socket;
+    uint8_t* request;
+    size_t requestLength;
+    uint16_t port;
+};
+
+using RouteHandler = bool (*)(const RequestContext&);
+
+struct Route {
+    const char* prefix;
+    size_t prefixLength;
+    DebuggerClient client;
+    RouteHandler handler;
+};
+
 class DebuggerHttpRouter {
 public:
-    DebuggerHttpRouter();
+    DebuggerHttpRouter() = default;
 
     bool handleHttpRequest(EscargotSocket socket, uint16_t port);
     bool webSocketEstablished() const;
     DebuggerClient client() const;
 
 private:
-    DebuggerClient m_client;
+    DebuggerClient m_client { DebuggerClient::None };
 };
 
 } // namespace Escargot

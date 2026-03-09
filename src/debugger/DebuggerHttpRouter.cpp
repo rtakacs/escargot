@@ -69,13 +69,12 @@ static void toBase64(const uint8_t* source, uint8_t* destination, size_t length)
     }
 }
 
-static bool requestStartsWith(const uint8_t* buffer, size_t lenght, const char* prefix)
+static bool requestStartsWith(const uint8_t* buffer, size_t lenght, const char* prefix, size_t prefixLength)
 {
-    size_t prefixLenght = strlen(prefix);
-    if (lenght < prefixLenght)
+    if (lenght < prefixLength)
         return false;
 
-    return memcmp(buffer, prefix, prefixLenght) == 0;
+    return memcmp(buffer, prefix, prefixLength) == 0;
 }
 
 static bool buildHttpResponse(const char* body, uint8_t* buffer, size_t bufferSize, size_t& outLen)
@@ -196,11 +195,6 @@ static bool webSocketHandshake(EscargotSocket socket, uint8_t* buffer, size_t le
     return DebuggerTcp::tcpSend(socket, responseSuffix, sizeof(responseSuffix) - 1);
 }
 
-DebuggerHttpRouter::DebuggerHttpRouter()
-    : m_client(DebuggerClient::None)
-{
-}
-
 bool DebuggerHttpRouter::webSocketEstablished() const
 {
     return m_client != DebuggerClient::None;
@@ -211,15 +205,42 @@ DebuggerClient DebuggerHttpRouter::client() const
     return m_client;
 }
 
-bool DebuggerHttpRouter::handleHttpRequest(EscargotSocket socket, uint16_t port)
+bool handleWebSocketRequest(const RequestContext& ctx)
 {
-    // TODO: move message reciving to readHttpMessage helper
+    return webSocketHandshake(ctx.socket, ctx.request, ctx.requestLength);
+}
+
+bool handleJsonVersion(const RequestContext& ctx)
+{
     uint8_t buffer[1024];
-    size_t remainingLength = sizeof(buffer);
+    size_t responseLength = 0;
+
+    if (!buildVersionResponse(buffer, sizeof(buffer), responseLength)) {
+        return false;
+    }
+
+    return DebuggerTcp::tcpSend(ctx.socket, buffer, responseLength);
+}
+
+bool handleJsonList(const RequestContext& ctx)
+{
+    uint8_t buffer[1024];
+    size_t responseLength = 0;
+
+    if (!buildListResponse(buffer, sizeof(buffer), ctx.port, responseLength)) {
+        return false;
+    }
+
+    return DebuggerTcp::tcpSend(ctx.socket, buffer, responseLength);
+}
+
+static bool readHttpMessage(EscargotSocket socket, uint8_t* buffer, size_t capacity, size_t& messageLength)
+{
+    size_t remainingLength = capacity;
     uint8_t* message = buffer;
 
     while (true) {
-        size_t receivedLength;
+        size_t receivedLength = 0;
         if (!DebuggerTcp::tcpReceive(socket, message, remainingLength, &receivedLength)) {
             return false;
         }
@@ -228,7 +249,8 @@ bool DebuggerHttpRouter::handleHttpRequest(EscargotSocket socket, uint16_t port)
         remainingLength -= receivedLength;
 
         if (message > (buffer + 4) && memcmp(message - 4, "\r\n\r\n", 4) == 0) {
-            break;
+            messageLength = static_cast<size_t>(message - buffer);
+            return true;
         }
 
         if (remainingLength == 0) {
@@ -236,41 +258,47 @@ bool DebuggerHttpRouter::handleHttpRequest(EscargotSocket socket, uint16_t port)
             return false;
         }
     }
+}
 
-    size_t messageLength = message - buffer;
-    size_t protocolLength = 0;
+template<size_t N>
+constexpr Route route(const char (&prefix)[N], DebuggerClient client, RouteHandler handler)
+{
+    return Route { prefix, N - 1, client, handler };
+}
 
-    static constexpr const char escargotProtocol[] = "GET /escargot-debugger";
-    static constexpr const char devtoolsProtocol[] = "GET /devtools/page/1";
+bool DebuggerHttpRouter::handleHttpRequest(EscargotSocket socket, uint16_t port)
+{
+    uint8_t buffer[1024];
+    size_t messageLength = 0;
 
-    if (requestStartsWith(buffer, messageLength, escargotProtocol)) {
-        m_client = DebuggerClient::Escargot;
-        protocolLength = sizeof(escargotProtocol) - 1;
-    } else if (requestStartsWith(buffer, messageLength, devtoolsProtocol)) {
-        m_client = DebuggerClient::DevTools;
-        protocolLength = sizeof(devtoolsProtocol) - 1;
-    }
-
-    if (m_client != DebuggerClient::None) {
-        return webSocketHandshake(socket, buffer + protocolLength, messageLength - protocolLength);
-    }
-
-    size_t responseLength = 0;
-
-    if (requestStartsWith(buffer, messageLength, "GET /json/version")) {
-        if (!buildVersionResponse(buffer, sizeof(buffer), responseLength)) {
-            return false;
-        }
-    } else if (requestStartsWith(buffer, messageLength, "GET /json/list")) {
-        if (!buildListResponse(buffer, sizeof(buffer), port, responseLength)) {
-            return false;
-        }
-    } else {
-        ESCARGOT_LOG_ERROR("Unsupported http request\n");
+    if (!readHttpMessage(socket, buffer, sizeof(buffer), messageLength)) {
         return false;
     }
 
-    return DebuggerTcp::tcpSend(socket, buffer, responseLength);
+    static constexpr Route routes[] = {
+        route("GET /escargot-debugger", DebuggerClient::Escargot, handleWebSocketRequest),
+        route("GET /devtools/page/1",   DebuggerClient::DevTools, handleWebSocketRequest),
+        route("GET /json/version",      DebuggerClient::None,     handleJsonVersion),
+        route("GET /json/list",         DebuggerClient::None,     handleJsonList),
+        route("GET /json",              DebuggerClient::None,     handleJsonList)
+    };
+
+    for (const auto& route : routes) {
+        if (!requestStartsWith(buffer, messageLength, route.prefix, route.prefixLength)) {
+            continue;
+        }
+
+        m_client = route.client;
+        // Skip the matched route prefix
+        uint8_t* remainder = buffer + route.prefixLength;
+        size_t remainderLength = messageLength - route.prefixLength;
+
+        return route.handler(RequestContext{ socket, remainder, remainderLength, port });
+    }
+
+    ESCARGOT_LOG_ERROR("Unsupported http request\n");
+    return false;
 }
+
 } // namespace Escargot
 #endif /* ESCARGOT_DEBUGGER */

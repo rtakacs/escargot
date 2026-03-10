@@ -317,14 +317,6 @@ bool DebuggerTcp::skipSourceCode(String* srcName) const
     return srcName->contains(m_skipSourceName);
 }
 
-#define ESCARGOT_DEBUGGER_WEBSOCKET_FIN_BIT 0x80
-#define ESCARGOT_DEBUGGER_WEBSOCKET_BINARY_FRAME 2
-#define ESCARGOT_DEBUGGER_WEBSOCKET_CLOSE_FRAME 8
-#define ESCARGOT_DEBUGGER_WEBSOCKET_OPCODE_MASK 0x0f
-#define ESCARGOT_DEBUGGER_WEBSOCKET_LENGTH_MASK 0x7f
-#define ESCARGOT_DEBUGGER_WEBSOCKET_ONE_BYTE_LEN_MAX 125
-#define ESCARGOT_DEBUGGER_WEBSOCKET_MASK_BIT 0x80
-
 bool DebuggerTcp::send(uint8_t type, const void* buffer, size_t length)
 {
     ASSERT(enabled());

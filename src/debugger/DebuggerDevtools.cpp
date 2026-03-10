@@ -20,6 +20,8 @@
 #include "Escargot.h"
 #include "DebuggerDevtools.h"
 
+#include "interpreter/ByteCode.h"
+
 #ifdef ESCARGOT_DEBUGGER
 
 namespace Escargot {
@@ -162,6 +164,30 @@ void DebuggerDevtools::parseCompleted(String* source, String* srcName, size_t or
 void DebuggerDevtools::stopAtBreakpoint(ByteCodeBlock* byteCodeBlock, uint32_t offset, ExecutionState* state)
 {
     ESCARGOT_LOG_INFO("Implement this: DebuggerDevtools::stopAtBreakpoint\n");
+    if (m_stopState == ESCARGOT_DEBUGGER_IN_EVAL_MODE) {
+        m_delay--;
+        if (m_delay == 0) {
+            processEvents(state, byteCodeBlock);
+        }
+        return;
+    }
+
+    uint8_t* byteCodeStart = byteCodeBlock->m_code.data();
+
+    // send(ESCARGOT_MESSAGE_BREAKPOINT_HIT, &breakpointOffset, sizeof(BreakpointOffset));
+
+    if (!enabled()) {
+        return;
+    }
+
+    ASSERT(m_activeObjects.size() == 0);
+    m_stopState = ESCARGOT_DEBUGGER_IN_WAIT_MODE;
+
+    while (processEvents(state, byteCodeBlock))
+        ;
+
+    m_activeObjects.clear();
+    m_delay = ESCARGOT_DEBUGGER_MESSAGE_PROCESS_DELAY;
 }
 
 void DebuggerDevtools::byteCodeReleaseNotification(ByteCodeBlock* byteCodeBlock)
@@ -188,7 +214,8 @@ String* DebuggerDevtools::getClientSource(String** sourceName)
 bool DebuggerDevtools::getWaitBeforeExitClient()
 {
     ESCARGOT_LOG_INFO("Implement this: DebuggerDevtools::getWaitBeforeExitClient\n");
-    while (processEvents(nullptr, nullptr));
+    while (processEvents(nullptr, nullptr))
+        ;
     return false;
 }
 
@@ -196,7 +223,7 @@ bool DebuggerDevtools::processEvents(ExecutionState* state, Optional<ByteCodeBlo
 {
     ESCARGOT_LOG_INFO("Implement this: DebuggerDevtools::processEvents\n");
 
-    uint8_t buffer[ESCARGOT_DEBUGGER_MAX_MESSAGE_LENGTH];
+    uint8_t buffer[ESCARGOT_DEVTOOLS_DEBUGGER_MAX_MESSAGE_LENGTH];
     size_t length;
 
     while (true) {
@@ -226,26 +253,107 @@ bool DebuggerDevtools::send(uint8_t type, const void* buffer, size_t length)
 
 bool DebuggerDevtools::receive(uint8_t* buffer, size_t& length)
 {
-    ESCARGOT_LOG_INFO("Implemented: DebuggerDevtools::receive\n");
+    ESCARGOT_LOG_INFO("DebuggerDevtools::receive:\n");
 
-    size_t receivedLength;
+    size_t receivedLength = 0;
+
 
     if (m_messageLength == 0 || m_receiveBufferFill < 2 + sizeof(uint32_t) + m_messageLength) {
         /* Cannot extract a whole message from the buffer. */
         if (!tcpReceive(m_socket,
                         m_receiveBuffer + m_receiveBufferFill,
-                        ESCARGOT_DEBUGGER_MAX_MESSAGE_LENGTH + 2 + sizeof(uint32_t) - m_receiveBufferFill,
+                        ESCARGOT_DEVTOOLS_DEBUGGER_MAX_MESSAGE_LENGTH + 2 + sizeof(uint32_t) - m_receiveBufferFill,
                         &receivedLength)) {
             close(CloseAbortConnection);
+            ESCARGOT_LOG_INFO("ERROR 1: closed connection\n");
             return false;
         }
 
         if (receivedLength == 0 && m_receiveBufferFill < (2 + sizeof(uint32_t))) {
+            ESCARGOT_LOG_INFO("ERROR 2: receivedLength: %lu, m_receiveBufferFill: %d\n", receivedLength, m_receiveBufferFill);
             return false;
         }
 
-        m_receiveBufferFill = (uint8_t)(m_receiveBufferFill + receivedLength);
+        m_receiveBufferFill = static_cast<uint32_t>(m_receiveBufferFill + receivedLength);
     }
+
+    if (m_messageLength == 0) {
+        if (m_receiveBufferFill < 3) {
+            return false;
+        }
+
+        if ((m_receiveBuffer[0] & ESCARGOT_DEBUGGER_WEBSOCKET_OPCODE_MASK) != ESCARGOT_DEBUGGER_WEBSOCKET_TEXT_FRAME) {
+            if ((m_receiveBuffer[0] & ESCARGOT_DEBUGGER_WEBSOCKET_OPCODE_MASK) == ESCARGOT_DEBUGGER_WEBSOCKET_CLOSE_FRAME) {
+                close(CloseEndConnection);
+                return false;
+            }
+
+            ESCARGOT_LOG_ERROR("Unsupported Websocket opcode: %x\n", (m_receiveBuffer[0] & ESCARGOT_DEBUGGER_WEBSOCKET_OPCODE_MASK));
+            ESCARGOT_LOG_ERROR("Unsupported Websocket opcode: %x\n", (m_receiveBuffer[0]));
+            close(CloseProtocolUnsupported);
+            return false;
+        }
+
+        if ((m_receiveBuffer[0] & ~ESCARGOT_DEBUGGER_WEBSOCKET_OPCODE_MASK) != ESCARGOT_DEBUGGER_WEBSOCKET_FIN_BIT
+            || !(m_receiveBuffer[1] & ESCARGOT_DEBUGGER_WEBSOCKET_MASK_BIT)) {
+            ESCARGOT_LOG_ERROR("Unsupported Websocket message: %x\n", m_receiveBuffer[0]);
+            close(CloseProtocolUnsupported);
+            return false;
+        }
+
+        m_messageLength = static_cast<uint8_t>(m_receiveBuffer[1] & ESCARGOT_DEBUGGER_WEBSOCKET_LENGTH_MASK);
+        if (m_messageLength <= ESCARGOT_DEBUGGER_MAX_MESSAGE_LENGTH) {
+            // length is the 7 bit value
+        } else if (m_messageLength == ESCARGOT_DEVTOOLS_DEBUGGER_MESASGE_LENGTH_16BIT) {
+            m_messageLength = *(m_receiveBuffer + 2);
+            m_messageLength <<= 8;
+            m_messageLength |= *(m_receiveBuffer + 3);
+        } else if (m_messageLength == ESCARGOT_DEVTOOLS_DEBUGGER_MESASGE_LENGTH_64BIT) {
+            ESCARGOT_LOG_ERROR("Unsupported Websocket message size mode: 64 bit");
+        }
+        printf("len: %lu\n", m_messageLength);
+
+        if (m_messageLength == 0 || m_messageLength > ESCARGOT_DEVTOOLS_DEBUGGER_MAX_MESSAGE_LENGTH
+            || m_messageLength == ESCARGOT_DEVTOOLS_DEBUGGER_MESASGE_LENGTH_64BIT) {
+            ESCARGOT_LOG_ERROR("Unsupported Websocket message size: %lu\n", m_messageLength);
+            close(CloseProtocolUnsupported);
+            return false;
+        }
+        ESCARGOT_LOG_INFO("Websocket message size: %lu\n", m_messageLength);
+    }
+
+    size_t totalSize = 2 + sizeof(uint32_t) + m_messageLength;
+
+    if (m_receiveBufferFill < totalSize) {
+        return false;
+    }
+
+    uint8_t* mask = m_receiveBuffer + 2 + (m_messageLength > ESCARGOT_DEBUGGER_MAX_MESSAGE_LENGTH ? 2 : 0);
+    uint8_t* mask_end = mask + sizeof(uint32_t);
+    uint8_t* source = mask_end;
+    uint8_t* buffer_end = buffer + m_messageLength;
+
+    while (buffer < buffer_end) {
+        *buffer++ = *source++ ^ *mask++;
+
+        if (mask >= mask_end) {
+            mask -= 4;
+        }
+    }
+
+    length = m_messageLength;
+    m_messageLength = 0;
+
+    if (m_receiveBufferFill == totalSize) {
+        m_receiveBufferFill = 0;
+        return true;
+    }
+
+    m_receiveBufferFill = static_cast<uint32_t>(m_receiveBufferFill - totalSize);
+    memmove(m_receiveBuffer, m_receiveBuffer + totalSize, m_receiveBufferFill);
+
+    buffer -= length;
+    printf("MESSAGE: %.*s\n", static_cast<int>(length), reinterpret_cast<const char*>(buffer));
 
     return true;
 }

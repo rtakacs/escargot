@@ -29,6 +29,9 @@ namespace Escargot {
 
 /* WebSocket max length encoded in one byte. */
 #define ESCARGOT_DEBUGGER_MAX_MESSAGE_LENGTH 125
+#define ESCARGOT_DEVTOOLS_DEBUGGER_MAX_MESSAGE_LENGTH 65536
+#define ESCARGOT_DEVTOOLS_DEBUGGER_MESASGE_LENGTH_16BIT 126
+#define ESCARGOT_DEVTOOLS_DEBUGGER_MESASGE_LENGTH_64BIT 127
 #define ESCARGOT_DEBUGGER_VERSION 1
 #define ESCARGOT_DEBUGGER_MESSAGE_PROCESS_DELAY 10
 #define ESCARGOT_DEBUGGER_IN_WAIT_MODE (nullptr)
@@ -36,6 +39,15 @@ namespace Escargot {
 #define ESCARGOT_DEBUGGER_ALWAYS_STOP (reinterpret_cast<ExecutionState*>(0x2))
 #define ESCARGOT_DEBUGGER_NO_STACK_TRACE_RESTORE (reinterpret_cast<ExecutionState*>(0x1))
 #define ESCARGOT_DEBUGGER_MAX_VARIABLE_LENGTH 128
+
+#define ESCARGOT_DEBUGGER_WEBSOCKET_FIN_BIT 0x80
+#define ESCARGOT_DEBUGGER_WEBSOCKET_TEXT_FRAME 1
+#define ESCARGOT_DEBUGGER_WEBSOCKET_BINARY_FRAME 2
+#define ESCARGOT_DEBUGGER_WEBSOCKET_CLOSE_FRAME 8
+#define ESCARGOT_DEBUGGER_WEBSOCKET_OPCODE_MASK 0x0f
+#define ESCARGOT_DEBUGGER_WEBSOCKET_LENGTH_MASK 0x7f
+#define ESCARGOT_DEBUGGER_WEBSOCKET_ONE_BYTE_LEN_MAX 125
+#define ESCARGOT_DEBUGGER_WEBSOCKET_MASK_BIT 0x80
 
 class Context;
 class Object;
@@ -387,6 +399,8 @@ protected:
     virtual bool isThereAnyEvent() = 0;
     virtual void close(CloseReason reason) = 0;
 
+    Vector<Object*, GCUtil::gc_malloc_allocator<Object*>> m_activeObjects;
+
 private:
     // Packed structure definitions to reduce network traffic
 
@@ -436,7 +450,6 @@ private:
     String* m_clientSourceName;
 
     Vector<uintptr_t, GCUtil::gc_malloc_atomic_allocator<uintptr_t>> m_releasedFunctions;
-    Vector<Object*, GCUtil::gc_malloc_allocator<Object*>> m_activeObjects;
 };
 
 } // namespace Escargot

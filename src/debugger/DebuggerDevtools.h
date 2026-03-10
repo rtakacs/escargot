@@ -68,9 +68,9 @@ private:
     void receiveData();
 
     EscargotSocket m_socket;
-    uint8_t m_receiveBuffer[2 + sizeof(uint32_t) + ESCARGOT_DEBUGGER_MAX_MESSAGE_LENGTH];
-    uint8_t m_receiveBufferFill;
-    uint8_t m_messageLength;
+    uint8_t m_receiveBuffer[2 + sizeof(uint32_t) + ESCARGOT_DEVTOOLS_DEBUGGER_MAX_MESSAGE_LENGTH];
+    uint32_t m_receiveBufferFill;
+    uint64_t m_messageLength;
 
     // skip generating debugging bytecode for source code whose name contains m_skipSourceName
     String* m_skipSourceName;

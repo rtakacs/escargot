@@ -40,7 +40,6 @@ struct RequestContext {
     EscargotSocket socket;
     uint8_t* request;
     size_t requestLength;
-    uint16_t port;
 };
 
 using RouteHandler = bool (*)(const RequestContext&);
@@ -56,7 +55,7 @@ class DebuggerHttpRouter {
 public:
     DebuggerHttpRouter() = default;
 
-    bool handleHttpRequest(EscargotSocket socket, uint16_t port);
+    bool handleHttpRequest(EscargotSocket socket);
     bool webSocketEstablished() const;
     DebuggerClient client() const;
 

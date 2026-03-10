@@ -280,7 +280,7 @@ DebuggerRemote* DebuggerTcp::createDebugger(const char* options, Context* contex
 
         ESCARGOT_LOG_INFO("Connected from: %s\n", inet_ntoa(addr.sin_addr));
 
-        if (!httpRouter.handleHttpRequest(clientSocket, port)) {
+        if (!httpRouter.handleHttpRequest(clientSocket)) {
             tcpCloseSocket(clientSocket);
             return nullptr;
         }

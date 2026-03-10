@@ -24,6 +24,13 @@
 #ifdef ESCARGOT_DEBUGGER
 namespace Escargot {
 
+#ifdef WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#else
+#include <arpa/inet.h>
+#endif
+
 static uint8_t toBase64Character(uint8_t value)
 {
     if (value < 26) {
@@ -110,24 +117,26 @@ static bool buildVersionResponse(uint8_t* buffer, size_t bufferSize, size_t& out
     return buildHttpResponse(body, buffer, bufferSize, outLen);
 }
 
-static bool buildListResponse(uint8_t* buffer, size_t bufferSize, uint16_t port, size_t& outLen)
+static bool buildListResponse(uint8_t* buffer, size_t bufferSize, const char* ip, uint16_t port, size_t& outLen)
 {
     char body[512];
 
     int bodyLen = snprintf(body, sizeof(body),
         "[{"
         "\"description\":\"Escargot CDP target\","
-        "\"devtoolsFrontendUrl\":\"/devtools/inspector.html?ws=127.0.0.1:%u/devtools/page/1\","
+        "\"devtoolsFrontendUrl\":\"/devtools/inspector.html?ws=%s:%u/devtools/page/1\","
         "\"id\":\"1\","
         "\"title\":\"Escargot\","
         "\"type\":\"node\","
         "\"url\":\"file:///\","
-        "\"webSocketDebuggerUrl\":\"ws://127.0.0.1:%u/devtools/page/1\""
+        "\"webSocketDebuggerUrl\":\"ws://%s:%u/devtools/page/1\""
         "}]",
-        (unsigned)port, (unsigned)port);
+        ip, (unsigned)port,
+        ip, (unsigned)port);
 
-    if (bodyLen < 0)
+    if (bodyLen < 0 || (size_t)bodyLen >= sizeof(body)) {
         return false;
+    }
 
     return buildHttpResponse(body, buffer, bufferSize, outLen);
 }
@@ -224,10 +233,19 @@ bool handleJsonVersion(const RequestContext& ctx)
 
 bool handleJsonList(const RequestContext& ctx)
 {
+    struct sockaddr_in addr;
+    socklen_t len = sizeof(addr);
+
+    getsockname(ctx.socket, (struct sockaddr*)&addr, &len);
+
+    char ip[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, &addr.sin_addr, ip, sizeof(ip));
+    uint16_t port = ntohs(addr.sin_port);
+
     uint8_t buffer[1024];
     size_t responseLength = 0;
 
-    if (!buildListResponse(buffer, sizeof(buffer), ctx.port, responseLength)) {
+    if (!buildListResponse(buffer, sizeof(buffer), ip, port, responseLength)) {
         return false;
     }
 
@@ -266,7 +284,7 @@ constexpr Route route(const char (&prefix)[N], DebuggerClient client, RouteHandl
     return Route { prefix, N - 1, client, handler };
 }
 
-bool DebuggerHttpRouter::handleHttpRequest(EscargotSocket socket, uint16_t port)
+bool DebuggerHttpRouter::handleHttpRequest(EscargotSocket socket)
 {
     uint8_t buffer[1024];
     size_t messageLength = 0;
@@ -293,7 +311,7 @@ bool DebuggerHttpRouter::handleHttpRequest(EscargotSocket socket, uint16_t port)
         uint8_t* remainder = buffer + route.prefixLength;
         size_t remainderLength = messageLength - route.prefixLength;
 
-        return route.handler(RequestContext{ socket, remainder, remainderLength, port });
+        return route.handler(RequestContext{ socket, remainder, remainderLength });
     }
 
     ESCARGOT_LOG_ERROR("Unsupported http request\n");

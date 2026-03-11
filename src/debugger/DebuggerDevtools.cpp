@@ -227,6 +227,8 @@ bool DebuggerDevtools::processEvents(ExecutionState* state, Optional<ByteCodeBlo
     uint8_t buffer[ESCARGOT_DEVTOOLS_DEBUGGER_MAX_MESSAGE_LENGTH];
     size_t length;
 
+    usleep(250000);
+
     while (true) {
         if (isBlockingRequest) {
             if (!receive(buffer, length)) {
@@ -261,8 +263,6 @@ bool DebuggerDevtools::receive(uint8_t* buffer, size_t& length)
 
     size_t receivedLength = 0;
     size_t extendedLengthBytes = (m_messageLength > ESCARGOT_DEBUGGER_MAX_MESSAGE_LENGTH ? 2 : 0);
-
-    // sleep(1);
 
     if (m_messageLength == 0 || m_receiveBufferFill < 2 + extendedLengthBytes + sizeof(uint32_t) + m_messageLength) {
         /* Cannot extract a whole message from the buffer. */

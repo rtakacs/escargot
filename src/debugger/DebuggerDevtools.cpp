@@ -258,7 +258,7 @@ bool DebuggerDevtools::receive(uint8_t* buffer, size_t& length)
     size_t receivedLength = 0;
 
 
-    if (m_messageLength == 0 || m_receiveBufferFill < 2 + sizeof(uint32_t) + m_messageLength) {
+    if (m_messageLength == 0 || m_receiveBufferFill < 2 + 2 + sizeof(uint32_t) + m_messageLength) {
         /* Cannot extract a whole message from the buffer. */
         if (!tcpReceive(m_socket,
                         m_receiveBuffer + m_receiveBufferFill,
@@ -269,7 +269,7 @@ bool DebuggerDevtools::receive(uint8_t* buffer, size_t& length)
             return false;
         }
 
-        if (receivedLength == 0 && m_receiveBufferFill < (2 + sizeof(uint32_t))) {
+        if (receivedLength == 0 && m_receiveBufferFill < (2 + 2 + sizeof(uint32_t))) {
             ESCARGOT_LOG_INFO("ERROR 2: receivedLength: %lu, m_receiveBufferFill: %d\n", receivedLength, m_receiveBufferFill);
             return false;
         }
@@ -322,13 +322,14 @@ bool DebuggerDevtools::receive(uint8_t* buffer, size_t& length)
         ESCARGOT_LOG_INFO("Websocket message size: %lu\n", m_messageLength);
     }
 
-    size_t totalSize = 2 + sizeof(uint32_t) + m_messageLength;
+    size_t extendedLengthBytes = (m_messageLength > ESCARGOT_DEBUGGER_MAX_MESSAGE_LENGTH ? 2 : 0);
+    size_t totalSize = 2 + sizeof(uint32_t) + m_messageLength + extendedLengthBytes;
 
     if (m_receiveBufferFill < totalSize) {
         return false;
     }
 
-    uint8_t* mask = m_receiveBuffer + 2 + (m_messageLength > ESCARGOT_DEBUGGER_MAX_MESSAGE_LENGTH ? 2 : 0);
+    uint8_t* mask = m_receiveBuffer + 2 + extendedLengthBytes;
     uint8_t* mask_end = mask + sizeof(uint32_t);
     uint8_t* source = mask_end;
     uint8_t* buffer_end = buffer + m_messageLength;

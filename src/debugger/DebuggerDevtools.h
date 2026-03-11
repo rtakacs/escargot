@@ -68,7 +68,7 @@ private:
     void receiveData();
 
     EscargotSocket m_socket;
-    uint8_t m_receiveBuffer[2 + sizeof(uint32_t) + ESCARGOT_DEVTOOLS_DEBUGGER_MAX_MESSAGE_LENGTH];
+    uint8_t m_receiveBuffer[2 + 2 + sizeof(uint32_t) + ESCARGOT_DEVTOOLS_DEBUGGER_MAX_MESSAGE_LENGTH];
     uint32_t m_receiveBufferFill;
     uint64_t m_messageLength;
 

@@ -21,6 +21,7 @@
 #include "DebuggerDevtools.h"
 
 #include "interpreter/ByteCode.h"
+#include "rapidjson/document.h"
 
 #ifdef ESCARGOT_DEBUGGER
 
@@ -240,6 +241,9 @@ bool DebuggerDevtools::processEvents(ExecutionState* state, Optional<ByteCodeBlo
                 return false;
             }
         }
+
+        rapidjson::Document document;
+        document.Parse(reinterpret_cast<const rapidjson::GenericDocument<rapidjson::UTF8<>>::Ch*>(buffer));
     }
 
     return false;
@@ -256,20 +260,22 @@ bool DebuggerDevtools::receive(uint8_t* buffer, size_t& length)
     ESCARGOT_LOG_INFO("DebuggerDevtools::receive:\n");
 
     size_t receivedLength = 0;
+    size_t extendedLengthBytes = (m_messageLength > ESCARGOT_DEBUGGER_MAX_MESSAGE_LENGTH ? 2 : 0);
 
+    // sleep(1);
 
-    if (m_messageLength == 0 || m_receiveBufferFill < 2 + 2 + sizeof(uint32_t) + m_messageLength) {
+    if (m_messageLength == 0 || m_receiveBufferFill < 2 + extendedLengthBytes + sizeof(uint32_t) + m_messageLength) {
         /* Cannot extract a whole message from the buffer. */
         if (!tcpReceive(m_socket,
                         m_receiveBuffer + m_receiveBufferFill,
-                        ESCARGOT_DEVTOOLS_DEBUGGER_MAX_MESSAGE_LENGTH + 2 + sizeof(uint32_t) - m_receiveBufferFill,
+                        ESCARGOT_DEVTOOLS_DEBUGGER_MAX_MESSAGE_LENGTH + 2 + sizeof(uint32_t) + extendedLengthBytes - m_receiveBufferFill,
                         &receivedLength)) {
             close(CloseAbortConnection);
             ESCARGOT_LOG_INFO("ERROR 1: closed connection\n");
             return false;
         }
 
-        if (receivedLength == 0 && m_receiveBufferFill < (2 + 2 + sizeof(uint32_t))) {
+        if (receivedLength == 0 && m_receiveBufferFill < (2 + extendedLengthBytes + sizeof(uint32_t))) {
             ESCARGOT_LOG_INFO("ERROR 2: receivedLength: %lu, m_receiveBufferFill: %d\n", receivedLength, m_receiveBufferFill);
             return false;
         }
@@ -288,15 +294,14 @@ bool DebuggerDevtools::receive(uint8_t* buffer, size_t& length)
                 return false;
             }
 
-            ESCARGOT_LOG_ERROR("Unsupported Websocket opcode: %x\n", (m_receiveBuffer[0] & ESCARGOT_DEBUGGER_WEBSOCKET_OPCODE_MASK));
-            ESCARGOT_LOG_ERROR("Unsupported Websocket opcode: %x\n", (m_receiveBuffer[0]));
+            ESCARGOT_LOG_ERROR("Unsupported Websocket message: %x %x\n", m_receiveBuffer[0], m_receiveBuffer[1]);
             close(CloseProtocolUnsupported);
             return false;
         }
 
         if ((m_receiveBuffer[0] & ~ESCARGOT_DEBUGGER_WEBSOCKET_OPCODE_MASK) != ESCARGOT_DEBUGGER_WEBSOCKET_FIN_BIT
             || !(m_receiveBuffer[1] & ESCARGOT_DEBUGGER_WEBSOCKET_MASK_BIT)) {
-            ESCARGOT_LOG_ERROR("Unsupported Websocket message: %x\n", m_receiveBuffer[0]);
+            ESCARGOT_LOG_ERROR("Unsupported Websocket message: %x %x\n", m_receiveBuffer[0], m_receiveBuffer[1]);
             close(CloseProtocolUnsupported);
             return false;
         }
@@ -311,7 +316,6 @@ bool DebuggerDevtools::receive(uint8_t* buffer, size_t& length)
         } else if (m_messageLength == ESCARGOT_DEVTOOLS_DEBUGGER_MESASGE_LENGTH_64BIT) {
             ESCARGOT_LOG_ERROR("Unsupported Websocket message size mode: 64 bit");
         }
-        printf("len: %lu\n", m_messageLength);
 
         if (m_messageLength == 0 || m_messageLength > ESCARGOT_DEVTOOLS_DEBUGGER_MAX_MESSAGE_LENGTH
             || m_messageLength == ESCARGOT_DEVTOOLS_DEBUGGER_MESASGE_LENGTH_64BIT) {
@@ -322,7 +326,7 @@ bool DebuggerDevtools::receive(uint8_t* buffer, size_t& length)
         ESCARGOT_LOG_INFO("Websocket message size: %lu\n", m_messageLength);
     }
 
-    size_t extendedLengthBytes = (m_messageLength > ESCARGOT_DEBUGGER_MAX_MESSAGE_LENGTH ? 2 : 0);
+    extendedLengthBytes = (m_messageLength > ESCARGOT_DEBUGGER_MAX_MESSAGE_LENGTH ? 2 : 0);
     size_t totalSize = 2 + sizeof(uint32_t) + m_messageLength + extendedLengthBytes;
 
     if (m_receiveBufferFill < totalSize) {

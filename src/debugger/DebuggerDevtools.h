@@ -32,13 +32,24 @@ typedef SOCKET EscargotSocket;
 typedef int EscargotSocket;
 #endif /* WIN32 */
 
+#define ESCARGOT_WS_HEADER_BASE_SIZE      2
+#define ESCARGOT_WS_EXT_LEN16_SIZE        2
+#define ESCARGOT_WS_MASK_SIZE             4
+
+#define ESCARGOT_WS_MAX_MESSAGE_LENGTH    65535
+
+#define ESCARGOT_WS_HEADER_SIZE           (ESCARGOT_WS_HEADER_BASE_SIZE + ESCARGOT_WS_MASK_SIZE)
+#define ESCARGOT_WS_HEADER_LEN16_SIZE     (ESCARGOT_WS_HEADER_SIZE + ESCARGOT_WS_EXT_LEN16_SIZE)
+#define ESCARGOT_WS_BUFFER_SIZE           (ESCARGOT_WS_HEADER_LEN16_SIZE + ESCARGOT_WS_MAX_MESSAGE_LENGTH)
+
 class DebuggerDevtools : public DebuggerRemote {
 public:
     DebuggerDevtools(EscargotSocket socket, String* skipSource)
         : m_socket(socket)
         , m_receiveBuffer{}
         , m_receiveBufferFill(0)
-        , m_messageLength(0)
+        , m_payloadLength(0)
+        , m_headerLength(ESCARGOT_WS_HEADER_SIZE)
         , m_skipSourceName(skipSource)
     {
     }
@@ -69,9 +80,10 @@ private:
 
     EscargotSocket m_socket;
     // make this smaller by default and have a dynamic size, make sure receive nad tcpreceive can resize it
-    uint8_t m_receiveBuffer[2 + 2 + sizeof(uint32_t) + ESCARGOT_DEVTOOLS_DEBUGGER_MAX_MESSAGE_LENGTH];
+    uint8_t m_receiveBuffer[ESCARGOT_WS_BUFFER_SIZE];
     uint32_t m_receiveBufferFill;
-    uint64_t m_messageLength;
+    uint16_t m_payloadLength;
+    uint8_t m_headerLength;
 
     // skip generating debugging bytecode for source code whose name contains m_skipSourceName
     String* m_skipSourceName;

@@ -255,8 +255,42 @@ bool DebuggerDevtools::processEvents(ExecutionState* state, Optional<ByteCodeBlo
 
 bool DebuggerDevtools::send(uint8_t type, const void* buffer, size_t length)
 {
-    ESCARGOT_LOG_INFO("Implement this: DebuggerDevtools::send\n");
-    return false;
+    UNUSED_PARAMETER(type);
+    ASSERT(enabled());
+
+    if (length > ESCARGOT_WS_MAX_MESSAGE_LENGTH) {
+        ESCARGOT_LOG_ERROR("Cannot send WebSocket payload: 64-bit payload length is not supported.\n");
+        close(CloseAbortConnection);
+        return false;
+    }
+
+    size_t headerLength = 0;
+    uint8_t message[ESCARGOT_WS_BUFFER_SIZE];
+    message[0] = ESCARGOT_DEBUGGER_WEBSOCKET_FIN_BIT | ESCARGOT_DEBUGGER_WEBSOCKET_TEXT_FRAME;
+
+    // Server-to-client WebSocket frames are not masked,
+    // therefore the masking key is not included in the header.
+    if (length <= ESCARGOT_DEBUGGER_MAX_MESSAGE_LENGTH) {
+        headerLength = ESCARGOT_WS_HEADER_SIZE - ESCARGOT_WS_MASK_SIZE;
+
+        message[1] = (uint8_t)length;
+    } else {
+        headerLength = ESCARGOT_WS_HEADER_LEN16_SIZE - ESCARGOT_WS_MASK_SIZE;
+
+        message[1] = ESCARGOT_DEVTOOLS_DEBUGGER_MESSAGE_LENGTH_16BIT;
+        message[2] = (uint8_t)((length >> 8) & 0xFF);
+        message[3] = (uint8_t)(length & 0xFF);
+    }
+
+    memcpy(message + headerLength, buffer, length);
+
+    if (!tcpSend(m_socket, message, headerLength + length)) {
+        ESCARGOT_LOG_ERROR("Failed to send data via WebSocket connection.\n");
+        close(CloseAbortConnection);
+        return false;
+    }
+
+    return true;
 }
 
 bool DebuggerDevtools::receive(uint8_t* buffer, size_t& length)
@@ -368,8 +402,22 @@ bool DebuggerDevtools::receive(uint8_t* buffer, size_t& length)
 
 bool DebuggerDevtools::isThereAnyEvent()
 {
-    ESCARGOT_LOG_INFO("Implement this: DebuggerDevtools::isThereAnyEvent\n");
-    return false;
+    // if there is remained receive buffer data,
+    // user should call receive function again
+    if (m_receiveBufferFill) {
+        return true;
+    }
+
+    struct pollfd fd[1];
+    fd[0].fd = m_socket;
+    fd[0].events = POLLIN;
+    int rc = poll(fd, 1, 0);
+
+    if (rc == 0) {
+        return false;
+    }
+
+    return true;
 }
 
 void DebuggerDevtools::close(CloseReason reason)
